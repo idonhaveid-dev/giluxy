@@ -399,6 +399,7 @@ function App() {
   const [items, setItems] = useState<BlogItem[]>(() => loadBlogItems())
   const [selectedId, setSelectedId] = useState(defaultBlogItems[0].id)
   const [activeStatus, setActiveStatus] = useState<Status | 'all'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [quickMemo, setQuickMemo] = useState(
     '변산 마실길 샤스타데이지 이번 주말 확인. 주차, 화장실, 개화율, 사진 포인트 중심.',
   )
@@ -411,9 +412,28 @@ function App() {
   const selectedItem = items.find((item) => item.id === selectedId) ?? items[0] ?? defaultBlogItems[0]
 
   const filteredItems = useMemo(() => {
-    if (activeStatus === 'all') return items
-    return items.filter((item) => item.status === activeStatus)
-  }, [activeStatus, items])
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+    const statusFilteredItems = activeStatus === 'all' ? items : items.filter((item) => item.status === activeStatus)
+    if (!normalizedQuery) return statusFilteredItems
+
+    return statusFilteredItems.filter((item) => {
+      const searchableText = [
+        item.title,
+        item.category,
+        item.destination,
+        item.intent,
+        item.draftAngle,
+        item.memo,
+        ...item.keywords,
+        ...item.research,
+        ...Object.values(item.fieldAnswers),
+      ]
+        .join(' ')
+        .toLowerCase()
+
+      return searchableText.includes(normalizedQuery)
+    })
+  }, [activeStatus, items, searchQuery])
 
   const addQuickMemo = () => {
     const newItem = createBlogItemFromMemo(quickMemo, items)
@@ -464,6 +484,7 @@ function App() {
             filteredItems={filteredItems}
             items={items}
             quickMemo={quickMemo}
+            searchQuery={searchQuery}
             copyState={copyState}
             onAddQuickMemo={addQuickMemo}
             onCopyPrompt={copyPrompt}
@@ -471,6 +492,7 @@ function App() {
             selectedItem={selectedItem}
             setActiveStatus={setActiveStatus}
             setQuickMemo={setQuickMemo}
+            setSearchQuery={setSearchQuery}
             setSelectedId={setSelectedId}
             updateSelectedFieldAnswer={updateSelectedFieldAnswer}
             updateSelectedStatus={updateSelectedStatus}
@@ -609,6 +631,7 @@ function BlogWorkspace({
   filteredItems,
   items,
   quickMemo,
+  searchQuery,
   copyState,
   onAddQuickMemo,
   onCopyPrompt,
@@ -616,6 +639,7 @@ function BlogWorkspace({
   selectedItem,
   setActiveStatus,
   setQuickMemo,
+  setSearchQuery,
   setSelectedId,
   updateSelectedFieldAnswer,
   updateSelectedStatus,
@@ -624,6 +648,7 @@ function BlogWorkspace({
   filteredItems: BlogItem[]
   items: BlogItem[]
   quickMemo: string
+  searchQuery: string
   copyState: 'idle' | 'success' | 'error'
   onAddQuickMemo: () => void
   onCopyPrompt: () => void
@@ -631,6 +656,7 @@ function BlogWorkspace({
   selectedItem: BlogItem
   setActiveStatus: (status: Status | 'all') => void
   setQuickMemo: (memo: string) => void
+  setSearchQuery: (query: string) => void
   setSelectedId: (id: number) => void
   updateSelectedFieldAnswer: (questionId: string, answer: string) => void
   updateSelectedStatus: (status: Status) => void
@@ -643,15 +669,6 @@ function BlogWorkspace({
         <div>
           <p className="eyebrow">저스트레킹 / 블로그</p>
           <h2>현장형 블로그 업무판</h2>
-        </div>
-        <div className="top-actions">
-          <label className="search-box">
-            <Search size={18} />
-            <input type="search" placeholder="글감, 장소, 키워드 검색" />
-          </label>
-          <button className="icon-button" type="button" aria-label="새 글감 추가">
-            <Plus size={20} />
-          </button>
         </div>
       </header>
 
@@ -688,10 +705,15 @@ function BlogWorkspace({
 
       <section className="quick-capture" aria-label="Quick capture">
         <div>
-          <p className="eyebrow">빠른 입력</p>
-          <h3>대충 적어도 글감으로 남기는 곳</h3>
+          <p className="eyebrow">First Action</p>
+          <h3>아이디어 먼저 적기</h3>
+          <p>장소, 본 것, 느낌, 확인할 것만 단답으로 남기면 글감 카드가 됩니다.</p>
         </div>
-        <textarea value={quickMemo} onChange={(event) => setQuickMemo(event.target.value)} />
+        <textarea
+          value={quickMemo}
+          onChange={(event) => setQuickMemo(event.target.value)}
+          placeholder="예) 양양 낙산 차박 / 화장실 가까움 / 폭죽 소음 가능 / 취사는 비추"
+        />
         <div className="capture-actions">
           <button className="ghost-button" type="button">
             <Mic size={17} />
@@ -711,25 +733,37 @@ function BlogWorkspace({
               <p className="eyebrow">Pipeline</p>
               <h3>블로그 글감</h3>
             </div>
-            <div className="status-tabs" role="tablist" aria-label="Filter by status">
-              <button className={activeStatus === 'all' ? 'active' : ''} type="button" onClick={() => setActiveStatus('all')}>
-                전체
-              </button>
-              {statusOrder.map((status) => (
-                <button
-                  className={activeStatus === status ? 'active' : ''}
-                  type="button"
-                  key={status}
-                  onClick={() => setActiveStatus(status)}
-                >
-                  {statusMeta[status].label}
+            <div className="board-tools">
+              <label className="search-box compact">
+                <Search size={17} />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="저장된 글감 검색"
+                />
+              </label>
+              <div className="status-tabs" role="tablist" aria-label="Filter by status">
+                <button className={activeStatus === 'all' ? 'active' : ''} type="button" onClick={() => setActiveStatus('all')}>
+                  전체
                 </button>
-              ))}
+                {statusOrder.map((status) => (
+                  <button
+                    className={activeStatus === status ? 'active' : ''}
+                    type="button"
+                    key={status}
+                    onClick={() => setActiveStatus(status)}
+                  >
+                    {statusMeta[status].label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           <div className="blog-list">
-            {filteredItems.map((item) => (
+            {filteredItems.length > 0 ? (
+              filteredItems.map((item) => (
               <button
                 className={selectedId === item.id ? 'blog-card selected' : 'blog-card'}
                 type="button"
@@ -753,7 +787,13 @@ function BlogWorkspace({
                   </span>
                 </div>
               </button>
-            ))}
+              ))
+            ) : (
+              <div className="empty-state">
+                <strong>검색 결과 없음</strong>
+                <p>검색어를 줄이거나 상태 필터를 전체로 바꿔보세요.</p>
+              </div>
+            )}
           </div>
         </div>
 
