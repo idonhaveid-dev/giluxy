@@ -569,6 +569,32 @@
   line-height: 1.55;
 }
 
+.status-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.status-control button {
+  min-height: 30px;
+  border: 1px solid #dfe3d7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5c675a;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.status-control button.active {
+  border-color: #1d3326;
+  background: #1d3326;
+  color: #ffffff;
+}
+
 .detail-section {
   padding: 16px 18px;
   border-bottom: 1px solid #edf0e8;
@@ -617,6 +643,29 @@
   accent-color: #1d3326;
 }
 
+.field-note-input,
+.prompt-preview {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #dfe3d7;
+  border-radius: 8px;
+  background: #fbfcf7;
+  color: #222820;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 12px;
+  resize: vertical;
+}
+
+.field-note-input {
+  min-height: 104px;
+}
+
+.prompt-preview {
+  min-height: 260px;
+}
+
 .keyword-row {
   display: flex;
   flex-wrap: wrap;
@@ -638,14 +687,23 @@
   gap: 12px;
 }
 
-.prompt-card p {
+.prompt-card p.copy-message {
   margin: 0;
-  border-radius: 8px;
-  background: #f3f6ee;
-  padding: 12px;
-  color: #4f594d;
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.45;
+}
+
+.copy-message.success {
+  color: #1d6d39;
+}
+
+.copy-message.error {
+  color: #9a3412;
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 @media (max-width: 1180px) {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Archive,
   BadgeCheck,
@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ClipboardList,
   Compass,
+  Copy,
   FileText,
   Home,
   LayoutDashboard,
@@ -38,6 +39,7 @@ type BlogItem = {
   research: string[]
   checklist: string[]
   draftAngle: string
+  memo: string
 }
 
 type AppTile = {
@@ -58,7 +60,9 @@ const statusMeta: Record<Status, { label: string; tone: string }> = {
   published: { label: '발행완료', tone: 'dark' },
 }
 
-const blogItems: BlogItem[] = [
+const BLOG_ITEMS_STORAGE_KEY = 'giluxy.blogItems.v1'
+
+const defaultBlogItems: BlogItem[] = [
   {
     id: 1,
     title: '양양 스텔스 차박지 비교',
@@ -71,6 +75,7 @@ const blogItems: BlogItem[] = [
     research: ['해변 앞 주차장은 소음 가능성 높음', '화장실 접근성 확인 필요', '취사 가능 여부 표현 주의'],
     checklist: ['화장실 사진', '주차장 진입로', '잠자기 좋은 구역', '소음 발생 시간'],
     draftAngle: '취사 차박이 아니라 잠만 자는 스텔스 차박 기준으로 판단',
+    memo: '바닷가 바로 앞보다 한 블럭 뒤가 조용함. 폭죽 소리 가능성 있음. 취사는 추천하지 않음.',
   },
   {
     id: 2,
@@ -84,6 +89,7 @@ const blogItems: BlogItem[] = [
     research: ['1코스와 2코스 개화 차이 확인', '새만금간척박물관 주차 가능성 확인', '오전/오후 빛 방향 체크'],
     checklist: ['개화율 한줄 결론', '주차장 만차 여부', '화장실 위치', '사진 잘 나오는 방향'],
     draftAngle: '길게 설명하지 말고 방문 전 판단에 필요한 정보만 앞에 배치',
+    memo: '1코스는 만개에 가까움. 2코스 앞부분은 다음주가 절정. 보고 즐기기에는 충분함.',
   },
   {
     id: 3,
@@ -97,6 +103,7 @@ const blogItems: BlogItem[] = [
     research: ['만남의광장 네비 정확도 확인', '진달래 시즌 키워드 연결 가능', '난이도 과소평가 방지'],
     checklist: ['주차장 넓이', '화장실 상태', '위험구간', '하산 선택지'],
     draftAngle: '100대명산보다 빡센 체감과 8봉 하산 추천을 명확히',
+    memo: '1~8봉만 돌고 하산해도 볼 거 다 보고 덜 힘듦. 8봉에서 9봉 가는 길은 체력 소모 큼.',
   },
   {
     id: 4,
@@ -110,6 +117,7 @@ const blogItems: BlogItem[] = [
     research: ['제품명 정확히 확인', '사용 횟수와 고장 시점 정리', '대체 펌프 비교'],
     checklist: ['제품 사진', '시거잭 연결 사진', '에어매트 주입 시간', '대체품 사진'],
     draftAngle: '추천글이 아니라 실제 차박에서 죽어버린 장비 후기',
+    memo: '5회 사용 후 전원이 안 들어옴. 결국 발펌프 150회. 노즐은 무선 펌프와 호환됨.',
   },
 ]
 
@@ -181,20 +189,149 @@ const appTiles: AppTile[] = [
 
 const statusOrder: Status[] = ['idea', 'research', 'field', 'draft', 'published']
 
+function isStatus(value: unknown): value is Status {
+  return typeof value === 'string' && statusOrder.includes(value as Status)
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function isBlogItem(value: unknown): value is BlogItem {
+  if (typeof value !== 'object' || value === null) return false
+  const item = value as Record<string, unknown>
+
+  return (
+    typeof item.id === 'number' &&
+    typeof item.title === 'string' &&
+    typeof item.category === 'string' &&
+    isStatus(item.status) &&
+    typeof item.destination === 'string' &&
+    typeof item.due === 'string' &&
+    typeof item.intent === 'string' &&
+    isStringArray(item.keywords) &&
+    isStringArray(item.research) &&
+    isStringArray(item.checklist) &&
+    typeof item.draftAngle === 'string' &&
+    typeof item.memo === 'string'
+  )
+}
+
+function loadBlogItems(): BlogItem[] {
+  try {
+    const storedValue = window.localStorage.getItem(BLOG_ITEMS_STORAGE_KEY)
+    if (!storedValue) return defaultBlogItems
+
+    const parsedValue: unknown = JSON.parse(storedValue)
+    if (!Array.isArray(parsedValue) || !parsedValue.every(isBlogItem)) {
+      throw new Error('Saved blog items have an invalid shape.')
+    }
+
+    return parsedValue
+  } catch (error) {
+    console.error(error)
+    window.localStorage.removeItem(BLOG_ITEMS_STORAGE_KEY)
+    return defaultBlogItems
+  }
+}
+
+function createBlogItemFromMemo(memo: string, existingItems: BlogItem[]): BlogItem {
+  const trimmedMemo = memo.trim()
+  const firstLine = trimmedMemo.split('\n').find((line) => line.trim().length > 0)?.trim()
+  const title = firstLine ? firstLine.slice(0, 36) : '새 블로그 글감'
+  const nextId = Math.max(0, ...existingItems.map((item) => item.id)) + 1
+
+  return {
+    id: nextId,
+    title,
+    category: '미분류',
+    status: 'idea',
+    destination: '미정',
+    due: '미정',
+    intent: '현장 메모를 바탕으로 블로그 글감 정리',
+    keywords: [],
+    research: ['목적지 기본 정보 확인', '주차와 화장실 확인', '사진 포인트 확인'],
+    checklist: ['주차', '화장실', '혼잡도', '사진 포인트'],
+    draftAngle: '대충 남긴 메모를 네 블로그 말투의 현장형 정보 글로 정리',
+    memo: trimmedMemo,
+  }
+}
+
+function createDraftPrompt(item: BlogItem): string {
+  const keywords = item.keywords.length > 0 ? item.keywords.join(', ') : '메모에서 적절히 추출'
+
+  return `내 블로그 말투로 네이버 노출에 유리한 블로그 초안을 만들어줘.
+
+조건:
+- 과장하지 말고 직접 다녀온 사람처럼 담백하게 쓸 것
+- 정보는 앞쪽에 배치할 것
+- 주차, 화장실, 소요시간, 현장감, 추천/비추천 판단을 넣을 것
+- AI가 쓴 것처럼 매끈한 문장은 피하고 짧은 판단 문장을 섞을 것
+- 제목 후보 5개, 요약 박스, 본문, 사진 사이 문장, 태그를 만들어줄 것
+
+글감:
+- 제목: ${item.title}
+- 카테고리: ${item.category}
+- 장소/대상: ${item.destination}
+- 목적: ${item.intent}
+- 핵심 키워드: ${keywords}
+- 글 방향: ${item.draftAngle}
+
+조사 포인트:
+${item.research.map((note) => `- ${note}`).join('\n')}
+
+현장 체크리스트:
+${item.checklist.map((note) => `- ${note}`).join('\n')}
+
+현장 메모:
+${item.memo || '- 아직 없음'}`
+}
+
 function App() {
   const [view, setView] = useState<AppView>('home')
-  const [selectedId, setSelectedId] = useState(blogItems[0].id)
+  const [items, setItems] = useState<BlogItem[]>(() => loadBlogItems())
+  const [selectedId, setSelectedId] = useState(defaultBlogItems[0].id)
   const [activeStatus, setActiveStatus] = useState<Status | 'all'>('all')
   const [quickMemo, setQuickMemo] = useState(
     '변산 마실길 샤스타데이지 이번 주말 확인. 주차, 화장실, 개화율, 사진 포인트 중심.',
   )
+  const [copyState, setCopyState] = useState<'idle' | 'success' | 'error'>('idle')
 
-  const selectedItem = blogItems.find((item) => item.id === selectedId) ?? blogItems[0]
+  useEffect(() => {
+    window.localStorage.setItem(BLOG_ITEMS_STORAGE_KEY, JSON.stringify(items))
+  }, [items])
+
+  const selectedItem = items.find((item) => item.id === selectedId) ?? items[0] ?? defaultBlogItems[0]
 
   const filteredItems = useMemo(() => {
-    if (activeStatus === 'all') return blogItems
-    return blogItems.filter((item) => item.status === activeStatus)
-  }, [activeStatus])
+    if (activeStatus === 'all') return items
+    return items.filter((item) => item.status === activeStatus)
+  }, [activeStatus, items])
+
+  const addQuickMemo = () => {
+    const newItem = createBlogItemFromMemo(quickMemo, items)
+    setItems([newItem, ...items])
+    setSelectedId(newItem.id)
+    setQuickMemo('')
+  }
+
+  const updateSelectedStatus = (status: Status) => {
+    setItems((currentItems) => currentItems.map((item) => (item.id === selectedItem.id ? { ...item, status } : item)))
+  }
+
+  const updateSelectedMemo = (memo: string) => {
+    setItems((currentItems) => currentItems.map((item) => (item.id === selectedItem.id ? { ...item, memo } : item)))
+  }
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(createDraftPrompt(selectedItem))
+      setCopyState('success')
+    } catch (error) {
+      console.error(error)
+      setCopyState('error')
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -205,12 +342,18 @@ function App() {
           <BlogWorkspace
             activeStatus={activeStatus}
             filteredItems={filteredItems}
+            items={items}
             quickMemo={quickMemo}
+            copyState={copyState}
+            onAddQuickMemo={addQuickMemo}
+            onCopyPrompt={copyPrompt}
             selectedId={selectedId}
             selectedItem={selectedItem}
             setActiveStatus={setActiveStatus}
             setQuickMemo={setQuickMemo}
             setSelectedId={setSelectedId}
+            updateSelectedMemo={updateSelectedMemo}
+            updateSelectedStatus={updateSelectedStatus}
           />
         ) : null}
       </main>
@@ -344,22 +487,36 @@ function HomeScreen({ onOpenBlog }: { onOpenBlog: () => void }) {
 function BlogWorkspace({
   activeStatus,
   filteredItems,
+  items,
   quickMemo,
+  copyState,
+  onAddQuickMemo,
+  onCopyPrompt,
   selectedId,
   selectedItem,
   setActiveStatus,
   setQuickMemo,
   setSelectedId,
+  updateSelectedMemo,
+  updateSelectedStatus,
 }: {
   activeStatus: Status | 'all'
   filteredItems: BlogItem[]
+  items: BlogItem[]
   quickMemo: string
+  copyState: 'idle' | 'success' | 'error'
+  onAddQuickMemo: () => void
+  onCopyPrompt: () => void
   selectedId: number
   selectedItem: BlogItem
   setActiveStatus: (status: Status | 'all') => void
   setQuickMemo: (memo: string) => void
   setSelectedId: (id: number) => void
+  updateSelectedMemo: (memo: string) => void
+  updateSelectedStatus: (status: Status) => void
 }) {
+  const draftPrompt = createDraftPrompt(selectedItem)
+
   return (
     <>
       <header className="topbar">
@@ -382,7 +539,7 @@ function BlogWorkspace({
         <article className="metric-card">
           <ClipboardList size={20} />
           <div>
-            <strong>{blogItems.length}</strong>
+            <strong>{items.length}</strong>
             <span>진행 글감</span>
           </div>
         </article>
@@ -420,7 +577,7 @@ function BlogWorkspace({
             <Mic size={17} />
             음성메모
           </button>
-          <button className="primary-button" type="button">
+          <button className="primary-button" type="button" onClick={onAddQuickMemo} disabled={quickMemo.trim().length === 0}>
             <Plus size={17} />
             글감 저장
           </button>
@@ -485,6 +642,18 @@ function BlogWorkspace({
             <span className={`status-pill ${statusMeta[selectedItem.status].tone}`}>{statusMeta[selectedItem.status].label}</span>
             <h3>{selectedItem.title}</h3>
             <p>{selectedItem.draftAngle}</p>
+            <div className="status-control" aria-label="글감 상태 변경">
+              {statusOrder.map((status) => (
+                <button
+                  className={selectedItem.status === status ? 'active' : ''}
+                  key={status}
+                  type="button"
+                  onClick={() => updateSelectedStatus(status)}
+                >
+                  {statusMeta[status].label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <section className="detail-section">
@@ -528,18 +697,30 @@ function BlogWorkspace({
 
           <section className="detail-section">
             <h4>
+              <Mic size={17} />
+              현장 메모
+            </h4>
+            <textarea
+              className="field-note-input"
+              value={selectedItem.memo}
+              onChange={(event) => updateSelectedMemo(event.target.value)}
+              placeholder="현장에서 본 것만 짧게 적어두기"
+            />
+          </section>
+
+          <section className="detail-section">
+            <h4>
               <FileText size={17} />
-              초안 요청문
+              Codex용 요청문
             </h4>
             <div className="prompt-card">
-              <p>
-                이 글감을 내 블로그 말투로 네이버 노출용 초안으로 바꿔줘. 제목 후보, 요약, 본문, 사진 사이 문장,
-                태그까지 만들고 과장된 표현은 빼줘.
-              </p>
-              <button className="primary-button" type="button">
-                초안 만들기
-                <ChevronRight size={17} />
+              <textarea className="prompt-preview" value={draftPrompt} readOnly />
+              <button className="primary-button" type="button" onClick={onCopyPrompt}>
+                <Copy size={17} />
+                요청문 복사
               </button>
+              {copyState === 'success' ? <p className="copy-message success">복사 완료. 그대로 Codex나 ChatGPT에 붙여넣으면 됩니다.</p> : null}
+              {copyState === 'error' ? <p className="copy-message error">복사 권한이 막혔습니다. 요청문을 직접 선택해서 복사해주세요.</p> : null}
             </div>
           </section>
         </aside>
