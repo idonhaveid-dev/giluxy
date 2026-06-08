@@ -37,9 +37,16 @@ type BlogItem = {
   intent: string
   keywords: string[]
   research: string[]
-  checklist: string[]
+  fieldAnswers: Record<string, string>
   draftAngle: string
   memo: string
+}
+
+type FieldQuestion = {
+  id: string
+  label: string
+  options: string[]
+  placeholder: string
 }
 
 type AppTile = {
@@ -62,6 +69,51 @@ const statusMeta: Record<Status, { label: string; tone: string }> = {
 
 const BLOG_ITEMS_STORAGE_KEY = 'giluxy.blogItems.v1'
 
+const fieldQuestions: FieldQuestion[] = [
+  {
+    id: 'parking',
+    label: '주차',
+    options: ['여유', '보통', '만차', '확인필요'],
+    placeholder: '예: 10시 기준 만차, 갓길 가능',
+  },
+  {
+    id: 'toilet',
+    label: '화장실',
+    options: ['깨끗', '보통', '별로', '없음'],
+    placeholder: '예: 입구 화장실 깨끗함',
+  },
+  {
+    id: 'crowd',
+    label: '혼잡도',
+    options: ['한산', '보통', '많음', '매우많음'],
+    placeholder: '예: 오전은 한산, 점심부터 많음',
+  },
+  {
+    id: 'condition',
+    label: '현장상태',
+    options: ['좋음', '애매', '비추천', '재방문'],
+    placeholder: '예: 꽃 80%, 바람 심함',
+  },
+  {
+    id: 'photo',
+    label: '사진포인트',
+    options: ['오전', '오후', '일몰', '망원필요'],
+    placeholder: '예: 1코스 초입이 제일 좋음',
+  },
+  {
+    id: 'recommend',
+    label: '결론',
+    options: ['추천', '조건부', '비추천', '다시확인'],
+    placeholder: '예: 잠만 자는 차박은 추천, 취사는 비추',
+  },
+  {
+    id: 'other',
+    label: '기타',
+    options: ['특이사항 없음'],
+    placeholder: '놓치면 안 되는 말, 사진 순서, 현장 느낌',
+  },
+]
+
 const defaultBlogItems: BlogItem[] = [
   {
     id: 1,
@@ -73,7 +125,15 @@ const defaultBlogItems: BlogItem[] = [
     intent: '조용히 잠만 자기 좋은 해수욕장 차박지 정리',
     keywords: ['양양 차박', '낙산해수욕장 차박', '설악해수욕장 주차'],
     research: ['해변 앞 주차장은 소음 가능성 높음', '화장실 접근성 확인 필요', '취사 가능 여부 표현 주의'],
-    checklist: ['화장실 사진', '주차장 진입로', '잠자기 좋은 구역', '소음 발생 시간'],
+    fieldAnswers: {
+      parking: '한 블럭 뒤 주차가 조용함',
+      toilet: '확인필요',
+      crowd: '한산',
+      condition: '폭죽 소리 가능성 있음',
+      photo: '해변과 주차장 진입로',
+      recommend: '잠만 자는 차박은 추천, 취사는 비추천',
+      other: '바닷가 바로 앞보다 한 블럭 뒤가 조용함.',
+    },
     draftAngle: '취사 차박이 아니라 잠만 자는 스텔스 차박 기준으로 판단',
     memo: '바닷가 바로 앞보다 한 블럭 뒤가 조용함. 폭죽 소리 가능성 있음. 취사는 추천하지 않음.',
   },
@@ -87,7 +147,15 @@ const defaultBlogItems: BlogItem[] = [
     intent: '개화상황, 주차, 사진포인트를 빠르게 알려주는 실시간 글',
     keywords: ['변산 샤스타데이지', '마실길 샤스타데이지', '부안 꽃구경'],
     research: ['1코스와 2코스 개화 차이 확인', '새만금간척박물관 주차 가능성 확인', '오전/오후 빛 방향 체크'],
-    checklist: ['개화율 한줄 결론', '주차장 만차 여부', '화장실 위치', '사진 잘 나오는 방향'],
+    fieldAnswers: {
+      parking: '확인필요',
+      toilet: '확인필요',
+      crowd: '보통',
+      condition: '1코스 만개에 가까움, 2코스는 다음주 절정',
+      photo: '오전',
+      recommend: '추천',
+      other: '보고 즐기기에는 충분함.',
+    },
     draftAngle: '길게 설명하지 말고 방문 전 판단에 필요한 정보만 앞에 배치',
     memo: '1코스는 만개에 가까움. 2코스 앞부분은 다음주가 절정. 보고 즐기기에는 충분함.',
   },
@@ -101,7 +169,15 @@ const defaultBlogItems: BlogItem[] = [
     intent: '주차, 화장실, 난이도, 1~8봉 하산 판단 정리',
     keywords: ['구봉산 등산코스', '구봉산 주차', '구봉산 화장실'],
     research: ['만남의광장 네비 정확도 확인', '진달래 시즌 키워드 연결 가능', '난이도 과소평가 방지'],
-    checklist: ['주차장 넓이', '화장실 상태', '위험구간', '하산 선택지'],
+    fieldAnswers: {
+      parking: '여유',
+      toilet: '확인필요',
+      crowd: '보통',
+      condition: '난이도 어려움',
+      photo: '망원필요',
+      recommend: '조건부',
+      other: '1~8봉만 돌고 하산해도 볼 거 다 보고 덜 힘듦.',
+    },
     draftAngle: '100대명산보다 빡센 체감과 8봉 하산 추천을 명확히',
     memo: '1~8봉만 돌고 하산해도 볼 거 다 보고 덜 힘듦. 8봉에서 9봉 가는 길은 체력 소모 큼.',
   },
@@ -115,7 +191,15 @@ const defaultBlogItems: BlogItem[] = [
     intent: '실패한 장비 후기를 검색되는 구매후기로 전환',
     keywords: ['레이 차박 에어펌프', '시거잭 에어펌프 후기', '차박 에어매트 펌프'],
     research: ['제품명 정확히 확인', '사용 횟수와 고장 시점 정리', '대체 펌프 비교'],
-    checklist: ['제품 사진', '시거잭 연결 사진', '에어매트 주입 시간', '대체품 사진'],
+    fieldAnswers: {
+      parking: '해당없음',
+      toilet: '해당없음',
+      crowd: '해당없음',
+      condition: '5회 사용 후 고장',
+      photo: '제품, 시거잭, 에어매트',
+      recommend: '비추천',
+      other: '결국 발펌프 150회. 노즐은 무선 펌프와 호환됨.',
+    },
     draftAngle: '추천글이 아니라 실제 차박에서 죽어버린 장비 후기',
     memo: '5회 사용 후 전원이 안 들어옴. 결국 발펌프 150회. 노즐은 무선 펌프와 호환됨.',
   },
@@ -211,10 +295,24 @@ function isBlogItem(value: unknown): value is BlogItem {
     typeof item.intent === 'string' &&
     isStringArray(item.keywords) &&
     isStringArray(item.research) &&
-    isStringArray(item.checklist) &&
     typeof item.draftAngle === 'string' &&
     typeof item.memo === 'string'
   )
+}
+
+function normalizeBlogItem(item: BlogItem): BlogItem {
+  const legacyChecklist = (item as BlogItem & { checklist?: string[] }).checklist
+  const fieldAnswers =
+    typeof item.fieldAnswers === 'object' && item.fieldAnswers !== null
+      ? item.fieldAnswers
+      : {
+          other: [item.memo, ...(legacyChecklist ?? [])].filter(Boolean).join('\n'),
+        }
+
+  return {
+    ...item,
+    fieldAnswers,
+  }
 }
 
 function loadBlogItems(): BlogItem[] {
@@ -227,7 +325,7 @@ function loadBlogItems(): BlogItem[] {
       throw new Error('Saved blog items have an invalid shape.')
     }
 
-    return parsedValue
+    return parsedValue.map(normalizeBlogItem)
   } catch (error) {
     console.error(error)
     window.localStorage.removeItem(BLOG_ITEMS_STORAGE_KEY)
@@ -251,10 +349,22 @@ function createBlogItemFromMemo(memo: string, existingItems: BlogItem[]): BlogIt
     intent: '현장 메모를 바탕으로 블로그 글감 정리',
     keywords: [],
     research: ['목적지 기본 정보 확인', '주차와 화장실 확인', '사진 포인트 확인'],
-    checklist: ['주차', '화장실', '혼잡도', '사진 포인트'],
+    fieldAnswers: {
+      other: trimmedMemo,
+    },
     draftAngle: '대충 남긴 메모를 네 블로그 말투의 현장형 정보 글로 정리',
     memo: trimmedMemo,
   }
+}
+
+function formatFieldAnswers(fieldAnswers: Record<string, string>): string {
+  return fieldQuestions
+    .map((question) => {
+      const answer = fieldAnswers[question.id]?.trim()
+      return answer ? `- ${question.label}: ${answer}` : ''
+    })
+    .filter(Boolean)
+    .join('\n')
 }
 
 function createDraftPrompt(item: BlogItem): string {
@@ -280,11 +390,8 @@ function createDraftPrompt(item: BlogItem): string {
 조사 포인트:
 ${item.research.map((note) => `- ${note}`).join('\n')}
 
-현장 체크리스트:
-${item.checklist.map((note) => `- ${note}`).join('\n')}
-
-현장 메모:
-${item.memo || '- 아직 없음'}`
+현장 질문지 답변:
+${formatFieldAnswers(item.fieldAnswers) || '- 아직 없음'}`
 }
 
 function App() {
@@ -319,8 +426,21 @@ function App() {
     setItems((currentItems) => currentItems.map((item) => (item.id === selectedItem.id ? { ...item, status } : item)))
   }
 
-  const updateSelectedMemo = (memo: string) => {
-    setItems((currentItems) => currentItems.map((item) => (item.id === selectedItem.id ? { ...item, memo } : item)))
+  const updateSelectedFieldAnswer = (questionId: string, answer: string) => {
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === selectedItem.id
+          ? {
+              ...item,
+              fieldAnswers: {
+                ...item.fieldAnswers,
+                [questionId]: answer,
+              },
+              memo: questionId === 'other' ? answer : item.memo,
+            }
+          : item,
+      ),
+    )
   }
 
   const copyPrompt = async () => {
@@ -352,7 +472,7 @@ function App() {
             setActiveStatus={setActiveStatus}
             setQuickMemo={setQuickMemo}
             setSelectedId={setSelectedId}
-            updateSelectedMemo={updateSelectedMemo}
+            updateSelectedFieldAnswer={updateSelectedFieldAnswer}
             updateSelectedStatus={updateSelectedStatus}
           />
         ) : null}
@@ -497,7 +617,7 @@ function BlogWorkspace({
   setActiveStatus,
   setQuickMemo,
   setSelectedId,
-  updateSelectedMemo,
+  updateSelectedFieldAnswer,
   updateSelectedStatus,
 }: {
   activeStatus: Status | 'all'
@@ -512,7 +632,7 @@ function BlogWorkspace({
   setActiveStatus: (status: Status | 'all') => void
   setQuickMemo: (memo: string) => void
   setSelectedId: (id: number) => void
-  updateSelectedMemo: (memo: string) => void
+  updateSelectedFieldAnswer: (questionId: string, answer: string) => void
   updateSelectedStatus: (status: Status) => void
 }) {
   const draftPrompt = createDraftPrompt(selectedItem)
@@ -671,14 +791,34 @@ function BlogWorkspace({
           <section className="detail-section">
             <h4>
               <CheckCircle2 size={17} />
-              현장 체크
+              현장 질문지
             </h4>
-            <div className="check-list">
-              {selectedItem.checklist.map((item) => (
-                <label key={item}>
-                  <input type="checkbox" />
-                  <span>{item}</span>
-                </label>
+            <div className="questionnaire">
+              {fieldQuestions.map((question) => (
+                <div className="question-card" key={question.id}>
+                  <div className="question-title">
+                    <strong>{question.label}</strong>
+                    <span>{selectedItem.fieldAnswers[question.id] || '미입력'}</span>
+                  </div>
+                  <div className="answer-chips">
+                    {question.options.map((option) => (
+                      <button
+                        className={selectedItem.fieldAnswers[question.id] === option ? 'active' : ''}
+                        key={option}
+                        type="button"
+                        onClick={() => updateSelectedFieldAnswer(question.id, option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={selectedItem.fieldAnswers[question.id] ?? ''}
+                    onChange={(event) => updateSelectedFieldAnswer(question.id, event.target.value)}
+                    placeholder={question.placeholder}
+                  />
+                </div>
               ))}
             </div>
           </section>
@@ -693,19 +833,6 @@ function BlogWorkspace({
                 <span key={keyword}>{keyword}</span>
               ))}
             </div>
-          </section>
-
-          <section className="detail-section">
-            <h4>
-              <Mic size={17} />
-              현장 메모
-            </h4>
-            <textarea
-              className="field-note-input"
-              value={selectedItem.memo}
-              onChange={(event) => updateSelectedMemo(event.target.value)}
-              placeholder="현장에서 본 것만 짧게 적어두기"
-            />
           </section>
 
           <section className="detail-section">

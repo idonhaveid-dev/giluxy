@@ -623,24 +623,74 @@
   line-height: 1.45;
 }
 
-.check-list {
+.questionnaire {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
-.check-list label {
+.question-card {
+  display: grid;
+  gap: 9px;
+  border: 1px solid #dfe3d7;
+  border-radius: 8px;
+  background: #fbfcf7;
+  padding: 12px;
+}
+
+.question-title {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-height: 32px;
-  color: #4f594d;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.question-title strong {
+  color: #1d3326;
   font-size: 14px;
 }
 
-.check-list input {
-  width: 16px;
-  height: 16px;
-  accent-color: #1d3326;
+.question-title span {
+  color: #6f786d;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: right;
+}
+
+.answer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.answer-chips button {
+  min-height: 30px;
+  border: 1px solid #dfe3d7;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4d574b;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.answer-chips button.active {
+  border-color: #1d3326;
+  background: #1d3326;
+  color: #ffffff;
+}
+
+.question-card input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #dfe3d7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #222820;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
 }
 
 .field-note-input,
