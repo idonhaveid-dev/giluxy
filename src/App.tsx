@@ -77,6 +77,25 @@ type ReservationMonitor = {
   history: string[]
 }
 
+type ReservationService = '국립공원공단' | '숲나들e'
+type StayNights = '1' | '2'
+
+type ReservationFacilityOption = {
+  id: string
+  service: ReservationService
+  label: string
+  park: string
+  link: string
+}
+
+type ReservationMonitorDraft = {
+  service: ReservationService
+  facilityId: string
+  startDate: string
+  nights: StayNights
+  notify: string
+}
+
 const statusMeta: Record<Status, { label: string; tone: string }> = {
   idea: { label: '아이디어', tone: 'neutral' },
   research: { label: '조사중', tone: 'blue' },
@@ -93,6 +112,126 @@ const reservationStatusMeta: Record<ReservationStatus, { label: string; tone: st
   available: { label: '빈자리 감지', tone: 'green' },
   closed: { label: '마감', tone: 'neutral' },
 }
+
+const reservationServiceLinks: Record<ReservationService, string> = {
+  국립공원공단: 'https://reservation.knps.or.kr/',
+  숲나들e: 'https://www.foresttrip.go.kr/',
+}
+
+const reservationFacilityOptions: ReservationFacilityOption[] = [
+  {
+    id: 'knps-woraksan-songgye',
+    service: '국립공원공단',
+    park: '월악산',
+    label: '송계 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B111004&parkId=B11&prdDvcd=C',
+  },
+  {
+    id: 'knps-woraksan-datdonjae1',
+    service: '국립공원공단',
+    park: '월악산',
+    label: '닷돈재1 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?parkId=B11',
+  },
+  {
+    id: 'knps-woraksan-datdonjae2',
+    service: '국립공원공단',
+    park: '월악산',
+    label: '닷돈재2 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?parkId=B11',
+  },
+  {
+    id: 'knps-woraksan-deokju',
+    service: '국립공원공단',
+    park: '월악산',
+    label: '덕주 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?parkId=B11',
+  },
+  {
+    id: 'knps-woraksan-yongha',
+    service: '국립공원공단',
+    park: '월악산',
+    label: '용하 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B111004&parkId=B11&prdDvcd=C',
+  },
+  {
+    id: 'knps-woraksan-haseonam',
+    service: '국립공원공단',
+    park: '월악산',
+    label: '하선암 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?parkId=B11',
+  },
+  {
+    id: 'knps-deogyusan-deogyudae1',
+    service: '국립공원공단',
+    park: '덕유산',
+    label: '덕유대1 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?parkId=B05',
+  },
+  {
+    id: 'knps-deogyusan-deogyudae2',
+    service: '국립공원공단',
+    park: '덕유산',
+    label: '덕유대2 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B051007&parkId=B05&prdDvcd=C',
+  },
+  {
+    id: 'knps-deogyusan-deogyudae3',
+    service: '국립공원공단',
+    park: '덕유산',
+    label: '덕유대3 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B051006&parkId=B05&prdDvcd=C',
+  },
+  {
+    id: 'knps-byeonsan-gosapo1',
+    service: '국립공원공단',
+    park: '변산반도',
+    label: '고사포1 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?parkId=B18',
+  },
+  {
+    id: 'knps-byeonsan-gosapo2',
+    service: '국립공원공단',
+    park: '변산반도',
+    label: '고사포2 야영장',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B181004&parkId=B18&prdDvcd=C',
+  },
+  {
+    id: 'forest-yongin',
+    service: '숲나들e',
+    park: '서울/인천/경기',
+    label: '용인자연휴양림',
+    link: 'https://yonginforest.foresttrip.go.kr/',
+  },
+  {
+    id: 'forest-unaksan',
+    service: '숲나들e',
+    park: '서울/인천/경기',
+    label: '운악산 자연휴양림',
+    link: 'https://www.foresttrip.go.kr/',
+  },
+  {
+    id: 'forest-yumyeongsan',
+    service: '숲나들e',
+    park: '서울/인천/경기',
+    label: '유명산 자연휴양림',
+    link: 'https://www.foresttrip.go.kr/',
+  },
+  {
+    id: 'forest-barasan',
+    service: '숲나들e',
+    park: '서울/인천/경기',
+    label: '의왕바라산자연휴양림',
+    link: 'https://barasan.foresttrip.go.kr/',
+  },
+  {
+    id: 'forest-baegunbong',
+    service: '숲나들e',
+    park: '서울/인천/경기',
+    label: '양평 백운봉 자연휴양림',
+    link: 'https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=ID02030087&menuId=002002002',
+  },
+]
 
 const fieldQuestions: FieldQuestion[] = [
   {
@@ -437,6 +576,28 @@ function loadReservationMonitors(): ReservationMonitor[] {
   }
 }
 
+function getReservationFacilityOptions(service: ReservationService): ReservationFacilityOption[] {
+  return reservationFacilityOptions.filter((facility) => facility.service === service)
+}
+
+function getDefaultFacilityId(service: ReservationService): string {
+  return getReservationFacilityOptions(service)[0]?.id ?? reservationFacilityOptions[0].id
+}
+
+function formatReservationDate(dateValue: string): string {
+  if (!dateValue) return '날짜 미정'
+
+  const date = new Date(`${dateValue}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return dateValue
+
+  const weekdays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}.${month}.${day} ${weekdays[date.getDay()]}`
+}
+
 function createBlogItemFromMemo(memo: string, existingItems: BlogItem[]): BlogItem {
   const trimmedMemo = memo.trim()
   const firstLine = trimmedMemo.split('\n').find((line) => line.trim().length > 0)?.trim()
@@ -751,13 +912,12 @@ function ReservationWorkspace() {
   const [monitors, setMonitors] = useState<ReservationMonitor[]>(() => loadReservationMonitors())
   const [selectedMonitorId, setSelectedMonitorId] = useState(defaultReservationMonitors[0].id)
   const [isAddingMonitor, setIsAddingMonitor] = useState(false)
-  const [newMonitor, setNewMonitor] = useState({
+  const [newMonitor, setNewMonitor] = useState<ReservationMonitorDraft>({
     service: '국립공원공단',
-    campground: '월악산 송계야영장',
-    period: '2026.06.13 토요일',
-    condition: '송계야영장 빈자리 알림, 1박 우선',
+    facilityId: 'knps-woraksan-songgye',
+    startDate: '2026-06-13',
+    nights: '1',
     notify: '텔레그램 알림 예정',
-    link: 'https://reservation.knps.or.kr/',
   })
   const [testNotice, setTestNotice] = useState('')
 
@@ -768,25 +928,27 @@ function ReservationWorkspace() {
   const selectedMonitor = monitors.find((monitor) => monitor.id === selectedMonitorId) ?? monitors[0]
   const notifyingMonitorCount = monitors.filter((monitor) => monitor.notify !== '알림 미설정').length
   const availableMonitorCount = monitors.filter((monitor) => monitor.status === 'available').length
+  const facilityOptions = getReservationFacilityOptions(newMonitor.service)
+  const selectedFacility =
+    facilityOptions.find((facility) => facility.id === newMonitor.facilityId) ?? facilityOptions[0]
+  const reservationLink = selectedFacility?.link ?? reservationServiceLinks[newMonitor.service]
+  const periodText = `${formatReservationDate(newMonitor.startDate)}부터 ${newMonitor.nights}박`
+  const conditionText = `${newMonitor.nights}박 빈자리 알림`
 
   const addMonitor = () => {
-    const trimmedCampground = newMonitor.campground.trim()
-    const trimmedPeriod = newMonitor.period.trim()
-    const trimmedCondition = newMonitor.condition.trim()
-
-    if (!trimmedCampground || !trimmedPeriod || !trimmedCondition) return
+    if (!selectedFacility || !newMonitor.startDate) return
 
     const nextMonitor: ReservationMonitor = {
       id: Math.max(0, ...monitors.map((monitor) => monitor.id)) + 1,
-      service: newMonitor.service.trim() || '직접 입력',
-      campground: trimmedCampground,
-      period: trimmedPeriod,
-      condition: trimmedCondition,
+      service: newMonitor.service,
+      campground: `[${selectedFacility.park}] ${selectedFacility.label}`,
+      period: periodText,
+      condition: conditionText,
       status: 'watching',
       lastChecked: '아직 자동 조회 전',
       nextCheck: '로컬 모니터 연결 후 설정',
       notify: newMonitor.notify.trim() || '알림 미설정',
-      link: newMonitor.link.trim() || 'https://reservation.knps.or.kr/',
+      link: reservationLink,
       history: ['모니터링 조건 추가', '예약 확정은 사용자가 수동으로 진행'],
     }
 
@@ -874,58 +1036,68 @@ function ReservationWorkspace() {
               <span>서비스</span>
               <select
                 value={newMonitor.service}
-                onChange={(event) => setNewMonitor({ ...newMonitor, service: event.target.value })}
+                onChange={(event) => {
+                  const service = event.target.value as ReservationService
+                  setNewMonitor({
+                    ...newMonitor,
+                    service,
+                    facilityId: getDefaultFacilityId(service),
+                  })
+                }}
               >
                 <option>국립공원공단</option>
                 <option>숲나들e</option>
-                <option>직접 입력</option>
               </select>
             </label>
             <label className="form-field">
               <span>야영장</span>
+              <select
+                value={newMonitor.facilityId}
+                onChange={(event) => setNewMonitor({ ...newMonitor, facilityId: event.target.value })}
+              >
+                {facilityOptions.map((facility) => (
+                  <option key={facility.id} value={facility.id}>
+                    [{facility.park}] {facility.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>날짜</span>
               <input
-                type="text"
-                value={newMonitor.campground}
-                onChange={(event) => setNewMonitor({ ...newMonitor, campground: event.target.value })}
-                placeholder="월악산 송계야영장"
+                type="date"
+                value={newMonitor.startDate}
+                onChange={(event) => setNewMonitor({ ...newMonitor, startDate: event.target.value })}
               />
             </label>
             <label className="form-field">
-              <span>날짜/기간</span>
-              <input
-                type="text"
-                value={newMonitor.period}
-                onChange={(event) => setNewMonitor({ ...newMonitor, period: event.target.value })}
-                placeholder="2026.06.13 토요일"
-              />
-            </label>
-            <label className="form-field">
-              <span>조건</span>
-              <input
-                type="text"
-                value={newMonitor.condition}
-                onChange={(event) => setNewMonitor({ ...newMonitor, condition: event.target.value })}
-                placeholder="송계야영장 빈자리 알림, 1박 우선"
-              />
+              <span>숙박수</span>
+              <select
+                value={newMonitor.nights}
+                onChange={(event) => setNewMonitor({ ...newMonitor, nights: event.target.value as StayNights })}
+              >
+                <option value="1">1박</option>
+                <option value="2">2박</option>
+              </select>
             </label>
             <label className="form-field">
               <span>알림</span>
-              <input
-                type="text"
+              <select
                 value={newMonitor.notify}
                 onChange={(event) => setNewMonitor({ ...newMonitor, notify: event.target.value })}
-                placeholder="텔레그램 알림 예정"
-              />
+              >
+                <option>텔레그램 알림 예정</option>
+                <option>앱 안에서만 기록</option>
+                <option>알림 미설정</option>
+              </select>
             </label>
-            <label className="form-field">
+            <div className="form-field link-preview">
               <span>예약 페이지</span>
-              <input
-                type="url"
-                value={newMonitor.link}
-                onChange={(event) => setNewMonitor({ ...newMonitor, link: event.target.value })}
-                placeholder="https://reservation.knps.or.kr/"
-              />
-            </label>
+              <a href={reservationLink} target="_blank" rel="noreferrer">
+                {newMonitor.service} 예약 페이지
+                <ExternalLink size={15} />
+              </a>
+            </div>
           </div>
           <div className="form-actions">
             <button className="ghost-button" type="button" onClick={() => setIsAddingMonitor(false)}>
@@ -935,9 +1107,7 @@ function ReservationWorkspace() {
               className="primary-button"
               type="button"
               onClick={addMonitor}
-              disabled={
-                !newMonitor.campground.trim() || !newMonitor.period.trim() || !newMonitor.condition.trim()
-              }
+              disabled={!selectedFacility || !newMonitor.startDate}
             >
               <Plus size={17} />
               조건 저장
