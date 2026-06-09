@@ -6,18 +6,58 @@ const ALLOWED_HOSTS = new Set([
 ])
 
 const knpsFacilityFallbacks = [
-  { pattern: /송계/, deptId: 'B111002', deptName: '송계', parkName: '월악산' },
-  { pattern: /닷돈재1/, deptId: 'B111003', deptName: '닷돈재1', parkName: '월악산' },
-  { pattern: /닷돈재2/, deptId: 'B111001', deptName: '닷돈재2', parkName: '월악산' },
-  { pattern: /덕주/, deptId: 'B111007', deptName: '덕주', parkName: '월악산' },
-  { pattern: /용하/, deptId: 'B111004', deptName: '용하', parkName: '월악산' },
-  { pattern: /하선암/, deptId: 'B111008', deptName: '하선암', parkName: '월악산' },
-  { pattern: /덕유대1/, deptId: 'B051006', deptName: '덕유대1', parkName: '덕유산' },
-  { pattern: /덕유대2/, deptId: 'B051007', deptName: '덕유대2', parkName: '덕유산' },
-  { pattern: /덕유대3/, deptId: 'B051008', deptName: '덕유대3', parkName: '덕유산' },
-  { pattern: /고사포1/, deptId: 'B181003', deptName: '고사포1', parkName: '변산반도' },
-  { pattern: /고사포2/, deptId: 'B181004', deptName: '고사포2', parkName: '변산반도' },
-]
+  { parkName: '가야산', deptName: '백운동', deptId: 'B131002' },
+  { parkName: '가야산', deptName: '삼정', deptId: 'B131001' },
+  { parkName: '가야산', deptName: '치인', deptId: 'B131003' },
+  { parkName: '계룡산', deptName: '갑사', deptId: 'B161004' },
+  { parkName: '계룡산', deptName: '동학사', deptId: 'B161001' },
+  { parkName: '내장산', deptName: '가인', deptId: 'B041001' },
+  { parkName: '내장산', deptName: '내장', deptId: 'B042001' },
+  { parkName: '내장산', deptName: '내장호', deptId: 'B042004' },
+  { parkName: '다도해해상', deptName: '구계등', deptId: 'B091004' },
+  { parkName: '다도해해상', deptName: '시목', deptId: 'B092003' },
+  { parkName: '다도해해상', deptName: '염포', deptId: 'B091003' },
+  { parkName: '다도해해상', deptName: '팔영산', deptId: 'B091001' },
+  { parkName: '덕유산', deptName: '덕유대1', deptId: 'B051002' },
+  { parkName: '덕유산', deptName: '덕유대2', deptId: 'B051007' },
+  { parkName: '덕유산', deptName: '덕유대3', deptId: 'B051006' },
+  { parkName: '무등산', deptName: '도원', deptId: 'B172002' },
+  { parkName: '변산반도', deptName: '고사포1', deptId: 'B181002' },
+  { parkName: '변산반도', deptName: '고사포2', deptId: 'B181004' },
+  { parkName: '변산반도', deptName: '직소천', deptId: 'B181005' },
+  { parkName: '북한산', deptName: '사기막', deptId: 'B141003' },
+  { parkName: '설악산', deptName: '설악동', deptId: 'B031005' },
+  { parkName: '소백산', deptName: '남천', deptId: 'B122001' },
+  { parkName: '소백산', deptName: '삼가', deptId: 'B121001' },
+  { parkName: '오대산', deptName: '소금강산', deptId: 'B061001' },
+  { parkName: '월악산', deptName: '닷돈재1', deptId: 'B111003' },
+  { parkName: '월악산', deptName: '닷돈재2', deptId: 'B111001' },
+  { parkName: '월악산', deptName: '덕주', deptId: 'B111007' },
+  { parkName: '월악산', deptName: '송계', deptId: 'B111002' },
+  { parkName: '월악산', deptName: '용하', deptId: 'B111004' },
+  { parkName: '월악산', deptName: '하선암', deptId: 'B111008' },
+  { parkName: '월출산', deptName: '천황', deptId: 'B201001' },
+  { parkName: '주왕산', deptName: '상의', deptId: 'B071001' },
+  { parkName: '지리산', deptName: '내원', deptId: 'B011005' },
+  { parkName: '지리산', deptName: '달궁1', deptId: 'B012005' },
+  { parkName: '지리산', deptName: '달궁2', deptId: 'B012002' },
+  { parkName: '지리산', deptName: '덕동', deptId: 'B012003' },
+  { parkName: '지리산', deptName: '백무동', deptId: 'B011007' },
+  { parkName: '지리산', deptName: '소막골', deptId: 'B011006' },
+  { parkName: '지리산', deptName: '학천', deptId: 'B012010' },
+  { parkName: '치악산', deptName: '구룡', deptId: 'B101001' },
+  { parkName: '치악산', deptName: '금대', deptId: 'B101002' },
+  { parkName: '태백산', deptName: '소도', deptId: 'B221004' },
+  { parkName: '태안해안', deptName: '몽산포', deptId: 'B081002' },
+  { parkName: '태안해안', deptName: '학암포', deptId: 'B081001' },
+  { parkName: '팔공산', deptName: '갓바위', deptId: 'B252001' },
+  { parkName: '팔공산', deptName: '도학', deptId: 'B251001' },
+  { parkName: '한려해상', deptName: '덕신', deptId: 'B022003' },
+  { parkName: '한려해상', deptName: '학동', deptId: 'B021001' },
+].map((facility) => ({
+  ...facility,
+  pattern: new RegExp(`${escapeRegExp(facility.parkName)}.*${escapeRegExp(facility.deptName)}|${escapeRegExp(facility.deptName)}`),
+}))
 
 const forestFacilityFallbacks = [
   { pattern: /용인/, hmpgId: 'ID02030031', label: '용인자연휴양림' },
@@ -30,6 +70,10 @@ const forestFacilityFallbacks = [
 const availablePatterns = [/잔여\s*[1-9]/, /예약가능\s*[1-9]/, /[1-9]\s*자리/]
 
 const closedPatterns = [/예약\s*마감/, /예약마감/, /매진/, /대기\s*마감/, /잔여\s*0/]
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 function formatErrorMessage(error, fallbackMessage) {
   if (!(error instanceof Error)) return fallbackMessage
