@@ -86,6 +86,7 @@ const statusMeta: Record<Status, { label: string; tone: string }> = {
 }
 
 const BLOG_ITEMS_STORAGE_KEY = 'giluxy.blogItems.v1'
+const RESERVATION_MONITORS_STORAGE_KEY = 'giluxy.reservationMonitors.v1'
 
 const reservationStatusMeta: Record<ReservationStatus, { label: string; tone: string }> = {
   watching: { label: '감시중', tone: 'blue' },
@@ -304,13 +305,13 @@ const appTiles: AppTile[] = [
   },
 ]
 
-const reservationMonitors: ReservationMonitor[] = [
+const defaultReservationMonitors: ReservationMonitor[] = [
   {
     id: 1,
     service: '국립공원공단',
     campground: '월악산 송계야영장',
-    period: '2026년 7월 금/토/일',
-    condition: '자동차야영장 또는 일반야영장, 1박 우선',
+    period: '2026.06.13 토요일',
+    condition: '송계야영장 빈자리 알림, 1박 우선',
     status: 'watching',
     lastChecked: '아직 자동 조회 전',
     nextCheck: '로컬 모니터 연결 후 설정',
@@ -339,6 +340,10 @@ function isStatus(value: unknown): value is Status {
   return typeof value === 'string' && statusOrder.includes(value as Status)
 }
 
+function isReservationStatus(value: unknown): value is ReservationStatus {
+  return value === 'watching' || value === 'available' || value === 'closed'
+}
+
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
@@ -359,6 +364,25 @@ function isBlogItem(value: unknown): value is BlogItem {
     isStringArray(item.research) &&
     typeof item.draftAngle === 'string' &&
     typeof item.memo === 'string'
+  )
+}
+
+function isReservationMonitor(value: unknown): value is ReservationMonitor {
+  if (typeof value !== 'object' || value === null) return false
+  const monitor = value as Record<string, unknown>
+
+  return (
+    typeof monitor.id === 'number' &&
+    typeof monitor.service === 'string' &&
+    typeof monitor.campground === 'string' &&
+    typeof monitor.period === 'string' &&
+    typeof monitor.condition === 'string' &&
+    isReservationStatus(monitor.status) &&
+    typeof monitor.lastChecked === 'string' &&
+    typeof monitor.nextCheck === 'string' &&
+    typeof monitor.notify === 'string' &&
+    typeof monitor.link === 'string' &&
+    isStringArray(monitor.history)
   )
 }
 
@@ -392,6 +416,24 @@ function loadBlogItems(): BlogItem[] {
     console.error(error)
     window.localStorage.removeItem(BLOG_ITEMS_STORAGE_KEY)
     return defaultBlogItems
+  }
+}
+
+function loadReservationMonitors(): ReservationMonitor[] {
+  try {
+    const storedValue = window.localStorage.getItem(RESERVATION_MONITORS_STORAGE_KEY)
+    if (!storedValue) return defaultReservationMonitors
+
+    const parsedValue: unknown = JSON.parse(storedValue)
+    if (!Array.isArray(parsedValue) || !parsedValue.every(isReservationMonitor)) {
+      throw new Error('Saved reservation monitors have an invalid shape.')
+    }
+
+    return parsedValue
+  } catch (error) {
+    console.error(error)
+    window.localStorage.removeItem(RESERVATION_MONITORS_STORAGE_KEY)
+    return defaultReservationMonitors
   }
 }
 
@@ -706,12 +748,56 @@ function HomeScreen({ onOpenBlog, onOpenReservation }: { onOpenBlog: () => void;
 }
 
 function ReservationWorkspace() {
-  const [selectedMonitorId, setSelectedMonitorId] = useState(reservationMonitors[0].id)
+  const [monitors, setMonitors] = useState<ReservationMonitor[]>(() => loadReservationMonitors())
+  const [selectedMonitorId, setSelectedMonitorId] = useState(defaultReservationMonitors[0].id)
+  const [isAddingMonitor, setIsAddingMonitor] = useState(false)
+  const [newMonitor, setNewMonitor] = useState({
+    service: '국립공원공단',
+    campground: '월악산 송계야영장',
+    period: '2026.06.13 토요일',
+    condition: '송계야영장 빈자리 알림, 1박 우선',
+    notify: '텔레그램 알림 예정',
+    link: 'https://reservation.knps.or.kr/',
+  })
   const [testNotice, setTestNotice] = useState('')
-  const selectedMonitor =
-    reservationMonitors.find((monitor) => monitor.id === selectedMonitorId) ?? reservationMonitors[0]
+
+  useEffect(() => {
+    window.localStorage.setItem(RESERVATION_MONITORS_STORAGE_KEY, JSON.stringify(monitors))
+  }, [monitors])
+
+  const selectedMonitor = monitors.find((monitor) => monitor.id === selectedMonitorId) ?? monitors[0]
+  const notifyingMonitorCount = monitors.filter((monitor) => monitor.notify !== '알림 미설정').length
+  const availableMonitorCount = monitors.filter((monitor) => monitor.status === 'available').length
+
+  const addMonitor = () => {
+    const trimmedCampground = newMonitor.campground.trim()
+    const trimmedPeriod = newMonitor.period.trim()
+    const trimmedCondition = newMonitor.condition.trim()
+
+    if (!trimmedCampground || !trimmedPeriod || !trimmedCondition) return
+
+    const nextMonitor: ReservationMonitor = {
+      id: Math.max(0, ...monitors.map((monitor) => monitor.id)) + 1,
+      service: newMonitor.service.trim() || '직접 입력',
+      campground: trimmedCampground,
+      period: trimmedPeriod,
+      condition: trimmedCondition,
+      status: 'watching',
+      lastChecked: '아직 자동 조회 전',
+      nextCheck: '로컬 모니터 연결 후 설정',
+      notify: newMonitor.notify.trim() || '알림 미설정',
+      link: newMonitor.link.trim() || 'https://reservation.knps.or.kr/',
+      history: ['모니터링 조건 추가', '예약 확정은 사용자가 수동으로 진행'],
+    }
+
+    setMonitors((currentMonitors) => [nextMonitor, ...currentMonitors])
+    setSelectedMonitorId(nextMonitor.id)
+    setIsAddingMonitor(false)
+  }
 
   const triggerTestNotice = () => {
+    if (!selectedMonitor) return
+
     setTestNotice(
       `[알림 테스트] ${selectedMonitor.service} / ${selectedMonitor.campground} / ${selectedMonitor.period} 조건으로 빈자리 감지 메시지를 보냅니다.`,
     )
@@ -730,21 +816,21 @@ function ReservationWorkspace() {
         <article className="metric-card">
           <Tent size={20} />
           <div>
-            <strong>{reservationMonitors.length}</strong>
+            <strong>{monitors.length}</strong>
             <span>등록 조건</span>
           </div>
         </article>
         <article className="metric-card">
           <Bell size={20} />
           <div>
-            <strong>1</strong>
+            <strong>{notifyingMonitorCount}</strong>
             <span>알림 예정</span>
           </div>
         </article>
         <article className="metric-card">
           <Sparkles size={20} />
           <div>
-            <strong>0</strong>
+            <strong>{availableMonitorCount}</strong>
             <span>빈자리 감지</span>
           </div>
         </article>
@@ -763,13 +849,102 @@ function ReservationWorkspace() {
           <h3>조회와 알림까지만 자동화</h3>
           <p>로그인, 자동방지 문자, 예약 확정, 결제는 직접 진행하는 전제로 설계합니다.</p>
         </div>
-        <button className="primary-button" type="button" onClick={triggerTestNotice}>
-          <Bell size={17} />
-          알림 테스트
-        </button>
+        <div className="monitor-actions">
+          <button className="ghost-button" type="button" onClick={() => setIsAddingMonitor((isAdding) => !isAdding)}>
+            <Plus size={17} />
+            모니터링 조건 추가
+          </button>
+          <button className="primary-button" type="button" onClick={triggerTestNotice}>
+            <Bell size={17} />
+            알림 테스트
+          </button>
+        </div>
       </section>
 
       {testNotice ? <div className="test-notice">{testNotice}</div> : null}
+
+      {isAddingMonitor ? (
+        <section className="monitor-form" aria-label="모니터링 조건 추가">
+          <div>
+            <p className="eyebrow">New Monitor</p>
+            <h3>빈자리 감시 조건 추가</h3>
+          </div>
+          <div className="form-grid">
+            <label className="form-field">
+              <span>서비스</span>
+              <select
+                value={newMonitor.service}
+                onChange={(event) => setNewMonitor({ ...newMonitor, service: event.target.value })}
+              >
+                <option>국립공원공단</option>
+                <option>숲나들e</option>
+                <option>직접 입력</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span>야영장</span>
+              <input
+                type="text"
+                value={newMonitor.campground}
+                onChange={(event) => setNewMonitor({ ...newMonitor, campground: event.target.value })}
+                placeholder="월악산 송계야영장"
+              />
+            </label>
+            <label className="form-field">
+              <span>날짜/기간</span>
+              <input
+                type="text"
+                value={newMonitor.period}
+                onChange={(event) => setNewMonitor({ ...newMonitor, period: event.target.value })}
+                placeholder="2026.06.13 토요일"
+              />
+            </label>
+            <label className="form-field">
+              <span>조건</span>
+              <input
+                type="text"
+                value={newMonitor.condition}
+                onChange={(event) => setNewMonitor({ ...newMonitor, condition: event.target.value })}
+                placeholder="송계야영장 빈자리 알림, 1박 우선"
+              />
+            </label>
+            <label className="form-field">
+              <span>알림</span>
+              <input
+                type="text"
+                value={newMonitor.notify}
+                onChange={(event) => setNewMonitor({ ...newMonitor, notify: event.target.value })}
+                placeholder="텔레그램 알림 예정"
+              />
+            </label>
+            <label className="form-field">
+              <span>예약 페이지</span>
+              <input
+                type="url"
+                value={newMonitor.link}
+                onChange={(event) => setNewMonitor({ ...newMonitor, link: event.target.value })}
+                placeholder="https://reservation.knps.or.kr/"
+              />
+            </label>
+          </div>
+          <div className="form-actions">
+            <button className="ghost-button" type="button" onClick={() => setIsAddingMonitor(false)}>
+              취소
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={addMonitor}
+              disabled={
+                !newMonitor.campground.trim() || !newMonitor.period.trim() || !newMonitor.condition.trim()
+              }
+            >
+              <Plus size={17} />
+              조건 저장
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="reservation-grid">
         <div className="board-panel">
@@ -781,9 +956,9 @@ function ReservationWorkspace() {
           </div>
 
           <div className="monitor-list">
-            {reservationMonitors.map((monitor) => (
+            {monitors.map((monitor) => (
               <button
-                className={selectedMonitor.id === monitor.id ? 'monitor-card selected' : 'monitor-card'}
+                className={selectedMonitor?.id === monitor.id ? 'monitor-card selected' : 'monitor-card'}
                 key={monitor.id}
                 type="button"
                 onClick={() => setSelectedMonitorId(monitor.id)}
@@ -802,57 +977,59 @@ function ReservationWorkspace() {
           </div>
         </div>
 
-        <aside className="detail-panel">
-          <div className="detail-header">
-            <span className={`status-pill ${reservationStatusMeta[selectedMonitor.status].tone}`}>
-              {reservationStatusMeta[selectedMonitor.status].label}
-            </span>
-            <h3>{selectedMonitor.campground}</h3>
-            <p>{selectedMonitor.condition}</p>
-          </div>
-
-          <section className="detail-section">
-            <h4>
-              <CalendarDays size={17} />
-              감시 조건
-            </h4>
-            <div className="reservation-facts">
-              <span>서비스</span>
-              <strong>{selectedMonitor.service}</strong>
-              <span>기간</span>
-              <strong>{selectedMonitor.period}</strong>
-              <span>마지막 확인</span>
-              <strong>{selectedMonitor.lastChecked}</strong>
-              <span>다음 확인</span>
-              <strong>{selectedMonitor.nextCheck}</strong>
-              <span>알림</span>
-              <strong>{selectedMonitor.notify}</strong>
+        {selectedMonitor ? (
+          <aside className="detail-panel">
+            <div className="detail-header">
+              <span className={`status-pill ${reservationStatusMeta[selectedMonitor.status].tone}`}>
+                {reservationStatusMeta[selectedMonitor.status].label}
+              </span>
+              <h3>{selectedMonitor.campground}</h3>
+              <p>{selectedMonitor.condition}</p>
             </div>
-          </section>
 
-          <section className="detail-section">
-            <h4>
-              <ClipboardList size={17} />
-              상태 기록
-            </h4>
-            <ul>
-              {selectedMonitor.history.map((history) => (
-                <li key={history}>{history}</li>
-              ))}
-            </ul>
-          </section>
+            <section className="detail-section">
+              <h4>
+                <CalendarDays size={17} />
+                감시 조건
+              </h4>
+              <div className="reservation-facts">
+                <span>서비스</span>
+                <strong>{selectedMonitor.service}</strong>
+                <span>기간</span>
+                <strong>{selectedMonitor.period}</strong>
+                <span>마지막 확인</span>
+                <strong>{selectedMonitor.lastChecked}</strong>
+                <span>다음 확인</span>
+                <strong>{selectedMonitor.nextCheck}</strong>
+                <span>알림</span>
+                <strong>{selectedMonitor.notify}</strong>
+              </div>
+            </section>
 
-          <section className="detail-section">
-            <h4>
-              <ExternalLink size={17} />
-              예약 페이지
-            </h4>
-            <a className="reservation-link" href={selectedMonitor.link} target="_blank" rel="noreferrer">
-              예약 페이지 열기
-              <ExternalLink size={16} />
-            </a>
-          </section>
-        </aside>
+            <section className="detail-section">
+              <h4>
+                <ClipboardList size={17} />
+                상태 기록
+              </h4>
+              <ul>
+                {selectedMonitor.history.map((history) => (
+                  <li key={history}>{history}</li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="detail-section">
+              <h4>
+                <ExternalLink size={17} />
+                예약 페이지
+              </h4>
+              <a className="reservation-link" href={selectedMonitor.link} target="_blank" rel="noreferrer">
+                예약 페이지 열기
+                <ExternalLink size={16} />
+              </a>
+            </section>
+          </aside>
+        ) : null}
       </section>
     </>
   )
