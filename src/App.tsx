@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Archive,
   BadgeCheck,
+  Bell,
   CalendarDays,
   Camera,
   CheckCircle2,
@@ -9,6 +10,7 @@ import {
   ClipboardList,
   Compass,
   Copy,
+  ExternalLink,
   FileText,
   Home,
   LayoutDashboard,
@@ -20,12 +22,14 @@ import {
   Settings,
   Sparkles,
   Tags,
+  Tent,
   Video,
 } from 'lucide-react'
 import './App.css'
 
-type AppView = 'home' | 'blog'
+type AppView = 'home' | 'blog' | 'reservation'
 type Status = 'idea' | 'research' | 'field' | 'draft' | 'published'
+type ReservationStatus = 'watching' | 'available' | 'closed'
 
 type BlogItem = {
   id: number
@@ -59,6 +63,20 @@ type AppTile = {
   enabled: boolean
 }
 
+type ReservationMonitor = {
+  id: number
+  service: string
+  campground: string
+  period: string
+  condition: string
+  status: ReservationStatus
+  lastChecked: string
+  nextCheck: string
+  notify: string
+  link: string
+  history: string[]
+}
+
 const statusMeta: Record<Status, { label: string; tone: string }> = {
   idea: { label: '아이디어', tone: 'neutral' },
   research: { label: '조사중', tone: 'blue' },
@@ -68,6 +86,12 @@ const statusMeta: Record<Status, { label: string; tone: string }> = {
 }
 
 const BLOG_ITEMS_STORAGE_KEY = 'giluxy.blogItems.v1'
+
+const reservationStatusMeta: Record<ReservationStatus, { label: string; tone: string }> = {
+  watching: { label: '감시중', tone: 'blue' },
+  available: { label: '빈자리 감지', tone: 'green' },
+  closed: { label: '마감', tone: 'neutral' },
+}
 
 const fieldQuestions: FieldQuestion[] = [
   {
@@ -216,6 +240,15 @@ const appTiles: AppTile[] = [
     enabled: true,
   },
   {
+    id: 'reservation',
+    title: '야영장 예약',
+    group: '모니터',
+    description: '숲나들e와 국립공원공단 야영장 빈자리 조건을 기록하고 알림 흐름을 테스트',
+    state: '사용 가능',
+    icon: Tent,
+    enabled: true,
+  },
+  {
     id: 'youtube',
     title: '유튜브',
     group: '저스트레킹',
@@ -268,6 +301,35 @@ const appTiles: AppTile[] = [
     state: '준비중',
     icon: Settings,
     enabled: false,
+  },
+]
+
+const reservationMonitors: ReservationMonitor[] = [
+  {
+    id: 1,
+    service: '국립공원공단',
+    campground: '월악산 송계야영장',
+    period: '2026년 7월 금/토/일',
+    condition: '자동차야영장 또는 일반야영장, 1박 우선',
+    status: 'watching',
+    lastChecked: '아직 자동 조회 전',
+    nextCheck: '로컬 모니터 연결 후 설정',
+    notify: '텔레그램 알림 예정',
+    link: 'https://reservation.knps.or.kr/',
+    history: ['조건 카드 생성', '예약 확정은 수동으로 진행'],
+  },
+  {
+    id: 2,
+    service: '숲나들e',
+    campground: '관심 자연휴양림 야영장',
+    period: '주말 취소분',
+    condition: '공식 빈자리 알림 또는 대기 기능 우선 확인',
+    status: 'closed',
+    lastChecked: '수동 확인 필요',
+    nextCheck: '대상 휴양림 지정 후 설정',
+    notify: '알림 미설정',
+    link: 'https://www.foresttrip.go.kr/',
+    history: ['대상 휴양림을 정하면 모니터 조건으로 전환'],
   },
 ]
 
@@ -477,7 +539,8 @@ function App() {
     <div className="app-shell">
       <Sidebar view={view} onNavigate={setView} />
       <main className={view === 'home' ? 'workspace home-workspace' : 'workspace'}>
-        {view === 'home' ? <HomeScreen onOpenBlog={() => setView('blog')} /> : null}
+        {view === 'home' ? <HomeScreen onOpenBlog={() => setView('blog')} onOpenReservation={() => setView('reservation')} /> : null}
+        {view === 'reservation' ? <ReservationWorkspace /> : null}
         {view === 'blog' ? (
           <BlogWorkspace
             activeStatus={activeStatus}
@@ -540,6 +603,18 @@ function Sidebar({ view, onNavigate }: { view: AppView; onNavigate: (view: AppVi
         </section>
 
         <section className="nav-group">
+          <p>모니터</p>
+          <button
+            className={view === 'reservation' ? 'nav-item active' : 'nav-item'}
+            type="button"
+            onClick={() => onNavigate('reservation')}
+          >
+            <Tent size={18} strokeWidth={1.8} />
+            <span>야영장 예약</span>
+          </button>
+        </section>
+
+        <section className="nav-group">
           <p>제작</p>
           <button className="nav-item" type="button">
             <Camera size={18} strokeWidth={1.8} />
@@ -571,7 +646,7 @@ function Sidebar({ view, onNavigate }: { view: AppView; onNavigate: (view: AppVi
   )
 }
 
-function HomeScreen({ onOpenBlog }: { onOpenBlog: () => void }) {
+function HomeScreen({ onOpenBlog, onOpenReservation }: { onOpenBlog: () => void; onOpenReservation: () => void }) {
   return (
     <>
       <header className="home-hero">
@@ -589,14 +664,18 @@ function HomeScreen({ onOpenBlog }: { onOpenBlog: () => void }) {
       <section className="app-grid" aria-label="GILUXY apps">
         {appTiles.map((tile) => {
           const Icon = tile.icon
-          const clickable = tile.id === 'blog' && tile.enabled
+          const clickable = tile.enabled
+          const openTile = () => {
+            if (tile.id === 'blog') onOpenBlog()
+            if (tile.id === 'reservation') onOpenReservation()
+          }
           return (
             <button
               className={clickable ? 'app-tile available' : 'app-tile'}
               disabled={!clickable}
               key={tile.id}
               type="button"
-              onClick={clickable ? onOpenBlog : undefined}
+              onClick={clickable ? openTile : undefined}
             >
               <span className="app-icon">
                 <Icon size={28} strokeWidth={1.8} />
@@ -613,14 +692,167 @@ function HomeScreen({ onOpenBlog }: { onOpenBlog: () => void }) {
       <section className="home-bottom-grid">
         <article className="home-panel">
           <p className="eyebrow">최근 작업</p>
-          <h3>블로그 글감 4개가 준비됨</h3>
-          <p>현재는 블로그 앱만 활성화되어 있고, 다음 단계에서 유튜브와 촬영 모듈을 붙일 수 있습니다.</p>
+          <h3>블로그와 야영장 예약 모니터가 준비됨</h3>
+          <p>글감 기록은 블로그 앱에서, 예약 빈자리 조건 관리는 야영장 예약 앱에서 시작합니다.</p>
         </article>
         <article className="home-panel">
           <p className="eyebrow">다음 구현</p>
           <h3>앱별 독립 화면</h3>
           <p>각 앱은 별도 데이터와 체크리스트를 가지되, 장소와 자료보관함은 공통 모듈로 연결합니다.</p>
         </article>
+      </section>
+    </>
+  )
+}
+
+function ReservationWorkspace() {
+  const [selectedMonitorId, setSelectedMonitorId] = useState(reservationMonitors[0].id)
+  const [testNotice, setTestNotice] = useState('')
+  const selectedMonitor =
+    reservationMonitors.find((monitor) => monitor.id === selectedMonitorId) ?? reservationMonitors[0]
+
+  const triggerTestNotice = () => {
+    setTestNotice(
+      `[알림 테스트] ${selectedMonitor.service} / ${selectedMonitor.campground} / ${selectedMonitor.period} 조건으로 빈자리 감지 메시지를 보냅니다.`,
+    )
+  }
+
+  return (
+    <>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">모니터 / 야영장 예약</p>
+          <h2>야영장 빈자리 알림판</h2>
+        </div>
+      </header>
+
+      <section className="summary-grid" aria-label="Reservation monitor summary">
+        <article className="metric-card">
+          <Tent size={20} />
+          <div>
+            <strong>{reservationMonitors.length}</strong>
+            <span>등록 조건</span>
+          </div>
+        </article>
+        <article className="metric-card">
+          <Bell size={20} />
+          <div>
+            <strong>1</strong>
+            <span>알림 예정</span>
+          </div>
+        </article>
+        <article className="metric-card">
+          <Sparkles size={20} />
+          <div>
+            <strong>0</strong>
+            <span>빈자리 감지</span>
+          </div>
+        </article>
+        <article className="metric-card">
+          <BadgeCheck size={20} />
+          <div>
+            <strong>수동</strong>
+            <span>예약 확정 방식</span>
+          </div>
+        </article>
+      </section>
+
+      <section className="reservation-notice">
+        <div>
+          <p className="eyebrow">Scope</p>
+          <h3>조회와 알림까지만 자동화</h3>
+          <p>로그인, 자동방지 문자, 예약 확정, 결제는 직접 진행하는 전제로 설계합니다.</p>
+        </div>
+        <button className="primary-button" type="button" onClick={triggerTestNotice}>
+          <Bell size={17} />
+          알림 테스트
+        </button>
+      </section>
+
+      {testNotice ? <div className="test-notice">{testNotice}</div> : null}
+
+      <section className="reservation-grid">
+        <div className="board-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Watch List</p>
+              <h3>예약 모니터 조건</h3>
+            </div>
+          </div>
+
+          <div className="monitor-list">
+            {reservationMonitors.map((monitor) => (
+              <button
+                className={selectedMonitor.id === monitor.id ? 'monitor-card selected' : 'monitor-card'}
+                key={monitor.id}
+                type="button"
+                onClick={() => setSelectedMonitorId(monitor.id)}
+              >
+                <div className="card-topline">
+                  <span className={`status-pill ${reservationStatusMeta[monitor.status].tone}`}>
+                    {reservationStatusMeta[monitor.status].label}
+                  </span>
+                  <span>{monitor.service}</span>
+                </div>
+                <strong>{monitor.campground}</strong>
+                <p>{monitor.period}</p>
+                <span>{monitor.condition}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <aside className="detail-panel">
+          <div className="detail-header">
+            <span className={`status-pill ${reservationStatusMeta[selectedMonitor.status].tone}`}>
+              {reservationStatusMeta[selectedMonitor.status].label}
+            </span>
+            <h3>{selectedMonitor.campground}</h3>
+            <p>{selectedMonitor.condition}</p>
+          </div>
+
+          <section className="detail-section">
+            <h4>
+              <CalendarDays size={17} />
+              감시 조건
+            </h4>
+            <div className="reservation-facts">
+              <span>서비스</span>
+              <strong>{selectedMonitor.service}</strong>
+              <span>기간</span>
+              <strong>{selectedMonitor.period}</strong>
+              <span>마지막 확인</span>
+              <strong>{selectedMonitor.lastChecked}</strong>
+              <span>다음 확인</span>
+              <strong>{selectedMonitor.nextCheck}</strong>
+              <span>알림</span>
+              <strong>{selectedMonitor.notify}</strong>
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>
+              <ClipboardList size={17} />
+              상태 기록
+            </h4>
+            <ul>
+              {selectedMonitor.history.map((history) => (
+                <li key={history}>{history}</li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="detail-section">
+            <h4>
+              <ExternalLink size={17} />
+              예약 페이지
+            </h4>
+            <a className="reservation-link" href={selectedMonitor.link} target="_blank" rel="noreferrer">
+              예약 페이지 열기
+              <ExternalLink size={16} />
+            </a>
+          </section>
+        </aside>
       </section>
     </>
   )
