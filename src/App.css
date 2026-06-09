@@ -804,6 +804,13 @@
   line-height: 1.55;
 }
 
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .status-control {
   display: flex;
   flex-wrap: wrap;

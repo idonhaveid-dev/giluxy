@@ -96,6 +96,13 @@ type ReservationMonitorDraft = {
   notify: string
 }
 
+type ReservationCheckResult = {
+  status: ReservationStatus
+  message: string
+  checkedAt: string
+  source: string
+}
+
 const statusMeta: Record<Status, { label: string; tone: string }> = {
   idea: { label: '아이디어', tone: 'neutral' },
   research: { label: '조사중', tone: 'blue' },
@@ -598,6 +605,30 @@ function formatReservationDate(dateValue: string): string {
   return `${year}.${month}.${day} ${weekdays[date.getDay()]}`
 }
 
+function formatCheckedAt(isoValue: string): string {
+  const date = new Date(isoValue)
+  if (Number.isNaN(date.getTime())) return '방금 확인'
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function isReservationCheckResult(value: unknown): value is ReservationCheckResult {
+  if (typeof value !== 'object' || value === null) return false
+  const result = value as Record<string, unknown>
+
+  return (
+    isReservationStatus(result.status) &&
+    typeof result.message === 'string' &&
+    typeof result.checkedAt === 'string' &&
+    typeof result.source === 'string'
+  )
+}
+
 function createBlogItemFromMemo(memo: string, existingItems: BlogItem[]): BlogItem {
   const trimmedMemo = memo.trim()
   const firstLine = trimmedMemo.split('\n').find((line) => line.trim().length > 0)?.trim()
@@ -920,6 +951,8 @@ function ReservationWorkspace() {
     notify: '텔레그램 알림 예정',
   })
   const [testNotice, setTestNotice] = useState('')
+  const [checkNotice, setCheckNotice] = useState('')
+  const [checkingMonitorId, setCheckingMonitorId] = useState<number | null>(null)
 
   useEffect(() => {
     window.localStorage.setItem(RESERVATION_MONITORS_STORAGE_KEY, JSON.stringify(monitors))
@@ -963,6 +996,76 @@ function ReservationWorkspace() {
     setTestNotice(
       `[알림 테스트] ${selectedMonitor.service} / ${selectedMonitor.campground} / ${selectedMonitor.period} 조건으로 빈자리 감지 메시지를 보냅니다.`,
     )
+  }
+
+  const checkSelectedMonitor = async () => {
+    if (!selectedMonitor || checkingMonitorId !== null) return
+
+    setCheckingMonitorId(selectedMonitor.id)
+    setCheckNotice('')
+
+    const query = new URLSearchParams({
+      service: selectedMonitor.service,
+      campground: selectedMonitor.campground,
+      period: selectedMonitor.period,
+      condition: selectedMonitor.condition,
+      url: selectedMonitor.link,
+    })
+
+    try {
+      const response = await fetch(`/api/check-reservation?${query.toString()}`)
+      const data: unknown = await response.json()
+
+      if (!response.ok) {
+        const message =
+          typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string'
+            ? data.error
+            : '예약 페이지 조회에 실패했습니다.'
+        throw new Error(message)
+      }
+
+      if (!isReservationCheckResult(data)) {
+        throw new Error('예약 조회 응답 형식이 올바르지 않습니다.')
+      }
+
+      const checkedAt = formatCheckedAt(data.checkedAt)
+      const historyMessage = `${checkedAt} ${data.message}`
+
+      setMonitors((currentMonitors) =>
+        currentMonitors.map((monitor) =>
+          monitor.id === selectedMonitor.id
+            ? {
+                ...monitor,
+                status: data.status,
+                lastChecked: checkedAt,
+                nextCheck: data.status === 'available' ? '지금 공식 페이지 확인' : '다음 수동 확인 대기',
+                history: [historyMessage, ...monitor.history].slice(0, 8),
+              }
+            : monitor,
+        ),
+      )
+      setCheckNotice(historyMessage)
+    } catch (error) {
+      const checkedAt = formatCheckedAt(new Date().toISOString())
+      const message = error instanceof Error ? error.message : '예약 페이지 조회에 실패했습니다.'
+      const historyMessage = `${checkedAt} 조회 실패: ${message}`
+
+      setMonitors((currentMonitors) =>
+        currentMonitors.map((monitor) =>
+          monitor.id === selectedMonitor.id
+            ? {
+                ...monitor,
+                lastChecked: checkedAt,
+                nextCheck: '조회 설정 확인 필요',
+                history: [historyMessage, ...monitor.history].slice(0, 8),
+              }
+            : monitor,
+        ),
+      )
+      setCheckNotice(historyMessage)
+    } finally {
+      setCheckingMonitorId(null)
+    }
   }
 
   return (
@@ -1024,6 +1127,7 @@ function ReservationWorkspace() {
       </section>
 
       {testNotice ? <div className="test-notice">{testNotice}</div> : null}
+      {checkNotice ? <div className="test-notice">{checkNotice}</div> : null}
 
       {isAddingMonitor ? (
         <section className="monitor-form" aria-label="모니터링 조건 추가">
@@ -1155,6 +1259,17 @@ function ReservationWorkspace() {
               </span>
               <h3>{selectedMonitor.campground}</h3>
               <p>{selectedMonitor.condition}</p>
+              <div className="detail-actions">
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={checkSelectedMonitor}
+                  disabled={checkingMonitorId !== null}
+                >
+                  <Search size={17} />
+                  {checkingMonitorId === selectedMonitor.id ? '확인 중' : '상태 확인'}
+                </button>
+              </div>
             </div>
 
             <section className="detail-section">
