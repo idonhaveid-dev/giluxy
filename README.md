@@ -21,6 +21,8 @@ npm run build
 
 - `api/check-reservation.js`: one-time reservation status check.
 - `api/run-reservation-monitors.js`: scheduled monitor runner for Vercel Cron.
+- `api/test-telegram.js`: manual Telegram alert test endpoint.
+- `api/telegram-alert.js`: shared Telegram message sender. Tokens must stay in environment variables.
 - `api/reservation-monitor-config.js`: server-side monitor list. Conditions saved only in browser localStorage are not visible to Cron yet.
 - `vercel.json`: runs `/api/run-reservation-monitors` daily from the Seoul region on Vercel Hobby.
 - For 10-minute monitoring, use Vercel Pro Cron or an external scheduler that calls `/api/run-reservation-monitors`.
@@ -30,6 +32,14 @@ Optional Vercel environment variables:
 - `TELEGRAM_BOT_TOKEN`: Telegram bot token for alerts.
 - `TELEGRAM_CHAT_ID`: Telegram chat ID that receives alerts.
 - `RESERVATION_CRON_SECRET`: optional guard for manual monitor runs. If set, call `/api/run-reservation-monitors?secret=...` or use `Authorization: Bearer ...`.
+
+Telegram setup:
+
+1. Create a bot with BotFather and save the token only in Vercel environment variables.
+2. Send any message to the bot from the Telegram account that should receive alerts.
+3. Read `chat.id` from Telegram `getUpdates`.
+4. Add `TELEGRAM_CHAT_ID` to Vercel.
+5. Call `/api/test-telegram` once to confirm delivery.
 
 Current automation boundary:
 
