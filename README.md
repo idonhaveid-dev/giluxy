@@ -37,6 +37,47 @@ Current automation boundary:
 - Login, CAPTCHA, booking confirmation, and payment stay manual.
 - Without a persistent database, available-state alerts may repeat on each Cron run.
 
+## Foresttrip Browser Monitor
+
+숲나들e 날짜별 잔여현황은 서버 fetch, Jina Reader, Defuddle에서 안정적으로 받을 수 없다. For that service, use the local browser monitor:
+
+```bash
+npm run monitor:foresttrip
+```
+
+What it does:
+
+- Opens Chrome or Edge with a dedicated GILUXY browser profile.
+- Reads the visible page text every 30 seconds.
+- Sends a Telegram alert when visible text matches availability signals.
+
+What it does not do:
+
+- It does not bypass NetFunnel, CAPTCHA, login, or queue controls.
+- It does not click reservation buttons, submit forms, confirm bookings, or pay.
+- The PC and browser process must stay running.
+
+Manual workflow:
+
+1. Run `npm run monitor:foresttrip`.
+2. In the opened browser, manually pass any queue/login flow.
+3. Select the forest, date, and nights on the official page.
+4. Leave the results page open. The script reads the visible text only.
+
+Useful options:
+
+```bash
+npm run monitor:foresttrip -- --url "https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=ID02030087&menuId=002002002"
+npm run monitor:foresttrip -- --interval 10
+npm run monitor:foresttrip -- --once
+```
+
+Optional environment variables:
+
+- `CHROME_PATH`: custom Chrome or Edge executable path.
+- `FORESTTRIP_AVAILABLE_PATTERNS`: comma-separated regular expressions for availability text.
+- `FORESTTRIP_CLOSED_PATTERNS`: comma-separated regular expressions for closed text.
+
 ## Project Direction
 
 - This app is not a single blog editor.
