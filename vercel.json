@@ -3,6 +3,15 @@
   "functions": {
     "api/check-reservation.js": {
       "regions": ["icn1"]
+    },
+    "api/run-reservation-monitors.js": {
+      "regions": ["icn1"]
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/run-reservation-monitors",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

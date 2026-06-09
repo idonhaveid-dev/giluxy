@@ -405,26 +405,21 @@ function detectGenericStatus(html, targetUrl) {
   }
 }
 
-export default async function handler(request, response) {
-  if (request.method !== 'GET') {
-    response.setHeader('Allow', 'GET')
-    response.status(405).json({ error: 'Method not allowed.' })
-    return
-  }
-
-  const targetUrl = sanitizeUrl(request.query.url)
+export async function checkReservationStatus(query) {
+  const targetUrl = sanitizeUrl(query.url)
   if (!targetUrl) {
-    response.status(400).json({ error: '지원하지 않는 예약 페이지 주소입니다.' })
-    return
+    const error = new Error('지원하지 않는 예약 페이지 주소입니다.')
+    error.statusCode = 400
+    throw error
   }
 
   try {
     let result
 
     if (targetUrl.hostname === 'reservation.knps.or.kr') {
-      result = await checkKnpsReservation(targetUrl, request.query)
+      result = await checkKnpsReservation(targetUrl, query)
     } else if (targetUrl.hostname.endsWith('foresttrip.go.kr')) {
-      result = await checkForestReservation(targetUrl, request.query)
+      result = await checkForestReservation(targetUrl, query)
     } else {
       const upstreamResponse = await fetch(targetUrl.toString(), {
         headers: {
@@ -444,23 +439,36 @@ export default async function handler(request, response) {
       result = detectGenericStatus(html, targetUrl)
     }
 
-    response.status(200).json({
+    return {
       checkedAt: new Date().toISOString(),
       source: targetUrl.toString(),
       ...result,
-    })
+    }
   } catch (error) {
     if (isFetchFailure(error)) {
-      response.status(200).json({
+      return {
         checkedAt: new Date().toISOString(),
         source: targetUrl.toString(),
         status: 'watching',
         message: `예약 사이트 네트워크 연결이 끊겼습니다: ${formatErrorMessage(error, 'fetch failed')}. 예약 페이지 버튼으로 공식 화면을 확인하세요.`,
-      })
-      return
+      }
     }
 
-    response.status(502).json({
+    throw error
+  }
+}
+
+export default async function handler(request, response) {
+  if (request.method !== 'GET') {
+    response.setHeader('Allow', 'GET')
+    response.status(405).json({ error: 'Method not allowed.' })
+    return
+  }
+
+  try {
+    response.status(200).json(await checkReservationStatus(request.query))
+  } catch (error) {
+    response.status(error.statusCode ?? 502).json({
       error: formatErrorMessage(error, '예약 페이지 조회에 실패했습니다.'),
     })
   }

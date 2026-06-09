@@ -1102,8 +1102,8 @@ function ReservationWorkspace() {
         <article className="metric-card">
           <BadgeCheck size={20} />
           <div>
-            <strong>수동</strong>
-            <span>예약 확정 방식</span>
+            <strong>1일</strong>
+            <span>자동 조회 주기</span>
           </div>
         </article>
       </section>
@@ -1111,8 +1111,8 @@ function ReservationWorkspace() {
       <section className="reservation-notice">
         <div>
           <p className="eyebrow">Scope</p>
-          <h3>조회와 알림까지만 자동화</h3>
-          <p>로그인, 자동방지 문자, 예약 확정, 결제는 직접 진행하는 전제로 설계합니다.</p>
+          <h3>빈자리 조회와 알림은 자동화</h3>
+          <p>서버가 하루 1회 등록 조건을 확인합니다. 10분 주기는 외부 스케줄러나 Pro 배포에서 켭니다.</p>
         </div>
         <div className="monitor-actions">
           <button className="ghost-button" type="button" onClick={() => setIsAddingMonitor((isAdding) => !isAdding)}>

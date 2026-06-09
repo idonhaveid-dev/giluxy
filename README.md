@@ -17,6 +17,26 @@ npm run dev
 npm run build
 ```
 
+## Reservation Monitor
+
+- `api/check-reservation.js`: one-time reservation status check.
+- `api/run-reservation-monitors.js`: scheduled monitor runner for Vercel Cron.
+- `api/reservation-monitor-config.js`: server-side monitor list. Conditions saved only in browser localStorage are not visible to Cron yet.
+- `vercel.json`: runs `/api/run-reservation-monitors` daily from the Seoul region on Vercel Hobby.
+- For 10-minute monitoring, use Vercel Pro Cron or an external scheduler that calls `/api/run-reservation-monitors`.
+
+Optional Vercel environment variables:
+
+- `TELEGRAM_BOT_TOKEN`: Telegram bot token for alerts.
+- `TELEGRAM_CHAT_ID`: Telegram chat ID that receives alerts.
+- `RESERVATION_CRON_SECRET`: optional guard for manual monitor runs. If set, call `/api/run-reservation-monitors?secret=...` or use `Authorization: Bearer ...`.
+
+Current automation boundary:
+
+- The server checks availability and can send alerts.
+- Login, CAPTCHA, booking confirmation, and payment stay manual.
+- Without a persistent database, available-state alerts may repeat on each Cron run.
+
 ## Project Direction
 
 - This app is not a single blog editor.
