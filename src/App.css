@@ -666,6 +666,10 @@
   color: #ffffff;
 }
 
+.reservation-filter {
+  justify-content: flex-end;
+}
+
 .blog-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -809,6 +813,16 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
+}
+
+.danger-button {
+  border-color: #f1c9c2;
+  color: #a83a2c;
+}
+
+.danger-button:hover {
+  background: #fff5f3;
+  border-color: #e7a59a;
 }
 
 .status-control {
@@ -993,7 +1007,8 @@
   color: #9a3412;
 }
 
-.primary-button:disabled {
+.primary-button:disabled,
+.ghost-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }

@@ -23,6 +23,7 @@ import {
   Sparkles,
   Tags,
   Tent,
+  Trash2,
   Video,
 } from 'lucide-react'
 import './App.css'
@@ -923,6 +924,7 @@ function HomeScreen({ onOpenBlog, onOpenReservation }: { onOpenBlog: () => void;
 function ReservationWorkspace() {
   const [monitors, setMonitors] = useState<ReservationMonitor[]>(() => loadReservationMonitors())
   const [selectedMonitorId, setSelectedMonitorId] = useState(defaultReservationMonitors[0].id)
+  const [reservationFilter, setReservationFilter] = useState<ReservationStatus | 'all'>('all')
   const [isAddingMonitor, setIsAddingMonitor] = useState(false)
   const [newMonitor, setNewMonitor] = useState<ReservationMonitorDraft>({
     service: '국립공원공단',
@@ -939,7 +941,15 @@ function ReservationWorkspace() {
     window.localStorage.setItem(RESERVATION_MONITORS_STORAGE_KEY, JSON.stringify(monitors))
   }, [monitors])
 
-  const selectedMonitor = monitors.find((monitor) => monitor.id === selectedMonitorId) ?? monitors[0]
+  const filteredMonitors = useMemo(
+    () =>
+      reservationFilter === 'all'
+        ? monitors
+        : monitors.filter((monitor) => monitor.status === reservationFilter),
+    [monitors, reservationFilter],
+  )
+  const selectedMonitor =
+    filteredMonitors.find((monitor) => monitor.id === selectedMonitorId) ?? filteredMonitors[0]
   const notifyingMonitorCount = monitors.filter((monitor) => monitor.notify !== '알림 미설정').length
   const availableMonitorCount = monitors.filter((monitor) => monitor.status === 'available').length
   const facilityOptions = getReservationFacilityOptions(newMonitor.service)
@@ -968,6 +978,7 @@ function ReservationWorkspace() {
 
     setMonitors((currentMonitors) => [nextMonitor, ...currentMonitors])
     setSelectedMonitorId(nextMonitor.id)
+    setReservationFilter('watching')
     setIsAddingMonitor(false)
   }
 
@@ -977,6 +988,21 @@ function ReservationWorkspace() {
     setTestNotice(
       `[알림 테스트] ${selectedMonitor.service} / ${selectedMonitor.campground} / ${selectedMonitor.period} 조건으로 빈자리 감지 메시지를 보냅니다.`,
     )
+  }
+
+  const deleteSelectedMonitor = () => {
+    if (!selectedMonitor || checkingMonitorId !== null) return
+
+    const nextMonitors = monitors.filter((monitor) => monitor.id !== selectedMonitor.id)
+    const nextVisibleMonitors =
+      reservationFilter === 'all'
+        ? nextMonitors
+        : nextMonitors.filter((monitor) => monitor.status === reservationFilter)
+
+    setMonitors(nextMonitors)
+    setSelectedMonitorId(nextVisibleMonitors[0]?.id ?? nextMonitors[0]?.id ?? 0)
+    setCheckNotice('')
+    setTestNotice('')
   }
 
   const checkSelectedMonitor = async () => {
@@ -1208,27 +1234,53 @@ function ReservationWorkspace() {
               <p className="eyebrow">Watch List</p>
               <h3>예약 모니터 조건</h3>
             </div>
+            <div className="status-tabs reservation-filter" role="tablist" aria-label="예약 모니터 상태 필터">
+              <button
+                className={reservationFilter === 'all' ? 'active' : ''}
+                type="button"
+                onClick={() => setReservationFilter('all')}
+              >
+                전체
+              </button>
+              {(['watching', 'available', 'closed'] as ReservationStatus[]).map((status) => (
+                <button
+                  className={reservationFilter === status ? 'active' : ''}
+                  key={status}
+                  type="button"
+                  onClick={() => setReservationFilter(status)}
+                >
+                  {reservationStatusMeta[status].label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="monitor-list">
-            {monitors.map((monitor) => (
-              <button
-                className={selectedMonitor?.id === monitor.id ? 'monitor-card selected' : 'monitor-card'}
-                key={monitor.id}
-                type="button"
-                onClick={() => setSelectedMonitorId(monitor.id)}
-              >
-                <div className="card-topline">
-                  <span className={`status-pill ${reservationStatusMeta[monitor.status].tone}`}>
-                    {reservationStatusMeta[monitor.status].label}
-                  </span>
-                  <span>{monitor.service}</span>
-                </div>
-                <strong>{monitor.campground}</strong>
-                <p>{monitor.period}</p>
-                <span>{monitor.condition}</span>
-              </button>
-            ))}
+            {filteredMonitors.length > 0 ? (
+              filteredMonitors.map((monitor) => (
+                <button
+                  className={selectedMonitor?.id === monitor.id ? 'monitor-card selected' : 'monitor-card'}
+                  key={monitor.id}
+                  type="button"
+                  onClick={() => setSelectedMonitorId(monitor.id)}
+                >
+                  <div className="card-topline">
+                    <span className={`status-pill ${reservationStatusMeta[monitor.status].tone}`}>
+                      {reservationStatusMeta[monitor.status].label}
+                    </span>
+                    <span>{monitor.service}</span>
+                  </div>
+                  <strong>{monitor.campground}</strong>
+                  <p>{monitor.period}</p>
+                  <span>{monitor.condition}</span>
+                </button>
+              ))
+            ) : (
+              <div className="empty-state">
+                <strong>표시할 조건이 없습니다.</strong>
+                <p>다른 상태를 선택하거나 새 모니터링 조건을 추가하세요.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1249,6 +1301,15 @@ function ReservationWorkspace() {
                 >
                   <Search size={17} />
                   {checkingMonitorId === selectedMonitor.id ? '확인 중' : '상태 확인'}
+                </button>
+                <button
+                  className="ghost-button danger-button"
+                  type="button"
+                  onClick={deleteSelectedMonitor}
+                  disabled={checkingMonitorId !== null}
+                >
+                  <Trash2 size={17} />
+                  카드 삭제
                 </button>
               </div>
             </div>
