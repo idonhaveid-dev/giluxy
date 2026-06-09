@@ -131,7 +131,7 @@ const reservationFacilityOptions: ReservationFacilityOption[] = [
     service: '국립공원공단',
     park: '월악산',
     label: '송계 야영장',
-    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B111004&parkId=B11&prdDvcd=C',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B111002&parkId=B11&prdDvcd=C',
   },
   {
     id: 'knps-woraksan-datdonjae1',
@@ -187,14 +187,14 @@ const reservationFacilityOptions: ReservationFacilityOption[] = [
     service: '국립공원공단',
     park: '덕유산',
     label: '덕유대3 야영장',
-    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B051006&parkId=B05&prdDvcd=C',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B051008&parkId=B05&prdDvcd=C',
   },
   {
     id: 'knps-byeonsan-gosapo1',
     service: '국립공원공단',
     park: '변산반도',
     label: '고사포1 야영장',
-    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?parkId=B18',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B181003&parkId=B18&prdDvcd=C',
   },
   {
     id: 'knps-byeonsan-gosapo2',
@@ -462,7 +462,7 @@ const defaultReservationMonitors: ReservationMonitor[] = [
     lastChecked: '아직 자동 조회 전',
     nextCheck: '로컬 모니터 연결 후 설정',
     notify: '텔레그램 알림 예정',
-    link: 'https://reservation.knps.or.kr/',
+    link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B111002&parkId=B11&prdDvcd=C',
     history: ['조건 카드 생성', '예약 확정은 수동으로 진행'],
   },
   {
