@@ -935,18 +935,21 @@ function ReservationWorkspace() {
   const addMonitor = () => {
     if (!selectedFacility || !newMonitor.startDate) return
 
+    const campgroundName =
+      selectedFacility.service === '숲나들e' ? selectedFacility.label : `[${selectedFacility.park}] ${selectedFacility.label}`
+
     const nextMonitor: ReservationMonitor = {
       id: Math.max(0, ...monitors.map((monitor) => monitor.id)) + 1,
       service: newMonitor.service,
-      campground: `[${selectedFacility.park}] ${selectedFacility.label}`,
+      campground: campgroundName,
       period: periodText,
       condition: conditionText,
       status: 'watching',
       lastChecked: '아직 자동 조회 전',
-      nextCheck: '로컬 모니터 연결 후 설정',
+      nextCheck: '지금 조회 버튼으로 즉시 확인 가능',
       notify: newMonitor.notify.trim() || '알림 미설정',
       link: reservationLink,
-      history: ['모니터링 조건 추가', '예약 확정은 사용자가 수동으로 진행'],
+      history: ['모니터링 조건 추가', '지금 조회를 누르면 공식 데이터를 1회 확인합니다.'],
     }
 
     setMonitors((currentMonitors) => [nextMonitor, ...currentMonitors])
@@ -1273,7 +1276,7 @@ function ReservationWorkspace() {
                   disabled={checkingMonitorId !== null}
                 >
                   <Search size={17} />
-                  {checkingMonitorId === selectedMonitor.id ? '확인 중' : '상태 확인'}
+                  {checkingMonitorId === selectedMonitor.id ? '조회 중' : '지금 조회'}
                 </button>
                 <button
                   className="ghost-button danger-button"
