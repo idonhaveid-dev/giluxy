@@ -66,7 +66,7 @@ type AppTile = {
 }
 
 type ReservationMonitor = {
-  id: number
+  id: string | number
   service: string
   campground: string
   period: string
@@ -105,6 +105,23 @@ type ReservationCheckResult = {
   source: string
 }
 
+type StoredReservationMonitor = {
+  id: string
+  service: string
+  campground: string
+  period: string
+  condition: string
+  status: ReservationStatus
+  url: string
+  alertStatuses: string[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+type ReservationMonitorsResponse = {
+  monitors: StoredReservationMonitor[]
+}
+
 const statusMeta: Record<Status, { label: string; tone: string }> = {
   idea: { label: '아이디어', tone: 'neutral' },
   research: { label: '조사중', tone: 'blue' },
@@ -115,11 +132,13 @@ const statusMeta: Record<Status, { label: string; tone: string }> = {
 
 const BLOG_ITEMS_STORAGE_KEY = 'giluxy.blogItems.v1'
 const RESERVATION_MONITORS_STORAGE_KEY = 'giluxy.reservationMonitors.v1'
+const AUTO_RESERVATION_CHECK_TEXT = '매일 오전 9시 자동 조회'
+const NOT_CHECKED_TEXT = '아직 조회 전'
 
 const reservationStatusMeta: Record<ReservationStatus, { label: string; tone: string }> = {
   watching: { label: '감시중', tone: 'blue' },
   available: { label: '빈자리 감지', tone: 'green' },
-  closed: { label: '마감', tone: 'neutral' },
+  closed: { label: '빈자리 없음', tone: 'neutral' },
 }
 
 const reservationServiceLinks: Record<ReservationService, string> = {
@@ -414,8 +433,8 @@ const defaultReservationMonitors: ReservationMonitor[] = [
     period: '2026.06.13 토요일',
     condition: '송계야영장 빈자리 알림, 1박 우선',
     status: 'watching',
-    lastChecked: '아직 자동 조회 전',
-    nextCheck: '로컬 모니터 연결 후 설정',
+    lastChecked: NOT_CHECKED_TEXT,
+    nextCheck: AUTO_RESERVATION_CHECK_TEXT,
     notify: '텔레그램 알림 예정',
     link: 'https://reservation.knps.or.kr/contents/C/serviceGuide.do?deptId=B111002&parkId=B11&prdDvcd=C',
     history: ['조건 카드 생성', '예약 확정은 수동으로 진행'],
@@ -427,8 +446,8 @@ const defaultReservationMonitors: ReservationMonitor[] = [
     period: '주말 취소분',
     condition: '공식 빈자리 알림 또는 대기 기능 우선 확인',
     status: 'closed',
-    lastChecked: '수동 확인 필요',
-    nextCheck: '대상 휴양림 지정 후 설정',
+    lastChecked: NOT_CHECKED_TEXT,
+    nextCheck: AUTO_RESERVATION_CHECK_TEXT,
     notify: '알림 미설정',
     link: 'https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=ID02030087&menuId=002002002',
     history: ['대상 휴양림을 정하면 모니터 조건으로 전환'],
@@ -473,7 +492,7 @@ function isReservationMonitor(value: unknown): value is ReservationMonitor {
   const monitor = value as Record<string, unknown>
 
   return (
-    typeof monitor.id === 'number' &&
+    (typeof monitor.id === 'number' || typeof monitor.id === 'string') &&
     typeof monitor.service === 'string' &&
     typeof monitor.campground === 'string' &&
     typeof monitor.period === 'string' &&
@@ -485,6 +504,55 @@ function isReservationMonitor(value: unknown): value is ReservationMonitor {
     typeof monitor.link === 'string' &&
     isStringArray(monitor.history)
   )
+}
+
+function isStoredReservationMonitor(value: unknown): value is StoredReservationMonitor {
+  if (typeof value !== 'object' || value === null) return false
+  const monitor = value as Record<string, unknown>
+
+  return (
+    typeof monitor.id === 'string' &&
+    typeof monitor.service === 'string' &&
+    typeof monitor.campground === 'string' &&
+    typeof monitor.period === 'string' &&
+    typeof monitor.condition === 'string' &&
+    isReservationStatus(monitor.status) &&
+    typeof monitor.url === 'string' &&
+    isStringArray(monitor.alertStatuses)
+  )
+}
+
+function isReservationMonitorsResponse(value: unknown): value is ReservationMonitorsResponse {
+  if (typeof value !== 'object' || value === null) return false
+  const response = value as Record<string, unknown>
+
+  return Array.isArray(response.monitors) && response.monitors.every(isStoredReservationMonitor)
+}
+
+function createMonitorFromStored(storedMonitor: StoredReservationMonitor): ReservationMonitor {
+  const hasChecked = Boolean(
+    storedMonitor.updatedAt &&
+      storedMonitor.createdAt &&
+      new Date(storedMonitor.updatedAt).getTime() !== new Date(storedMonitor.createdAt).getTime(),
+  )
+  const lastChecked = hasChecked && storedMonitor.updatedAt ? formatCheckedAt(storedMonitor.updatedAt) : NOT_CHECKED_TEXT
+
+  return {
+    id: storedMonitor.id,
+    service: storedMonitor.service,
+    campground: storedMonitor.campground,
+    period: storedMonitor.period,
+    condition: storedMonitor.condition,
+    status: storedMonitor.status,
+    lastChecked,
+    nextCheck: storedMonitor.status === 'available' ? '지금 공식 페이지 확인' : AUTO_RESERVATION_CHECK_TEXT,
+    notify: storedMonitor.alertStatuses.includes('available') ? '텔레그램 알림 예정' : '알림 미설정',
+    link: storedMonitor.url,
+    history: [
+      hasChecked ? `${lastChecked} 서버 자동 조회 결과 반영` : '모니터링 조건 추가',
+      AUTO_RESERVATION_CHECK_TEXT,
+    ],
+  }
 }
 
 function normalizeBlogItem(item: BlogItem): BlogItem {
@@ -896,7 +964,7 @@ function HomeScreen({ onOpenBlog, onOpenReservation }: { onOpenBlog: () => void;
 
 function ReservationWorkspace() {
   const [monitors, setMonitors] = useState<ReservationMonitor[]>(() => loadReservationMonitors())
-  const [selectedMonitorId, setSelectedMonitorId] = useState(defaultReservationMonitors[0].id)
+  const [selectedMonitorId, setSelectedMonitorId] = useState<ReservationMonitor['id']>(defaultReservationMonitors[0].id)
   const [reservationFilter, setReservationFilter] = useState<ReservationStatus | 'all'>('all')
   const [isAddingMonitor, setIsAddingMonitor] = useState(false)
   const [newMonitor, setNewMonitor] = useState<ReservationMonitorDraft>({
@@ -908,11 +976,37 @@ function ReservationWorkspace() {
   })
   const [testNotice, setTestNotice] = useState('')
   const [checkNotice, setCheckNotice] = useState('')
-  const [checkingMonitorId, setCheckingMonitorId] = useState<number | null>(null)
+  const [checkingMonitorId, setCheckingMonitorId] = useState<ReservationMonitor['id'] | null>(null)
 
   useEffect(() => {
     window.localStorage.setItem(RESERVATION_MONITORS_STORAGE_KEY, JSON.stringify(monitors))
   }, [monitors])
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadStoredMonitors() {
+      try {
+        const response = await fetch('/api/reservation-monitors')
+        if (!response.ok) return
+
+        const data: unknown = await response.json()
+        if (!isReservationMonitorsResponse(data) || data.monitors.length === 0 || !isActive) return
+
+        const storedMonitors = data.monitors.map(createMonitorFromStored)
+        setMonitors(storedMonitors)
+        setSelectedMonitorId(storedMonitors[0].id)
+      } catch (error) {
+        console.error(error)
+      }
+    }
+
+    void loadStoredMonitors()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   const filteredMonitors = useMemo(
     () =>
@@ -932,30 +1026,57 @@ function ReservationWorkspace() {
   const periodText = `${formatReservationDate(newMonitor.startDate)}부터 ${newMonitor.nights}박`
   const conditionText = `${newMonitor.nights}박 빈자리 알림`
 
-  const addMonitor = () => {
+  const addMonitor = async () => {
     if (!selectedFacility || !newMonitor.startDate) return
 
     const campgroundName =
       selectedFacility.service === '숲나들e' ? selectedFacility.label : `[${selectedFacility.park}] ${selectedFacility.label}`
 
-    const nextMonitor: ReservationMonitor = {
-      id: Math.max(0, ...monitors.map((monitor) => monitor.id)) + 1,
+    const monitorPayload = {
       service: newMonitor.service,
       campground: campgroundName,
       period: periodText,
       condition: conditionText,
       status: 'watching',
-      lastChecked: '아직 자동 조회 전',
-      nextCheck: '지금 조회 버튼으로 즉시 확인 가능',
-      notify: newMonitor.notify.trim() || '알림 미설정',
-      link: reservationLink,
-      history: ['모니터링 조건 추가', '지금 조회를 누르면 공식 데이터를 1회 확인합니다.'],
+      url: reservationLink,
+      alertStatuses: ['available'],
     }
 
-    setMonitors((currentMonitors) => [nextMonitor, ...currentMonitors])
-    setSelectedMonitorId(nextMonitor.id)
-    setReservationFilter('watching')
-    setIsAddingMonitor(false)
+    try {
+      const response = await fetch('/api/reservation-monitors', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(monitorPayload),
+      })
+      const data: unknown = await response.json()
+
+      if (!response.ok) {
+        const message =
+          typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string'
+            ? data.error
+            : '모니터링 조건 저장에 실패했습니다.'
+        throw new Error(message)
+      }
+
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        !('monitor' in data) ||
+        !isStoredReservationMonitor((data as { monitor: unknown }).monitor)
+      ) {
+        throw new Error('모니터링 조건 저장 응답 형식이 올바르지 않습니다.')
+      }
+
+      const nextMonitor = createMonitorFromStored((data as { monitor: StoredReservationMonitor }).monitor)
+      setMonitors((currentMonitors) => [nextMonitor, ...currentMonitors])
+      setSelectedMonitorId(nextMonitor.id)
+      setReservationFilter('watching')
+      setIsAddingMonitor(false)
+      setCheckNotice('조건이 DB에 저장됐습니다. 다음 자동조회부터 서버가 이 조건을 확인합니다.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '모니터링 조건 저장에 실패했습니다.'
+      setCheckNotice(`저장 실패: ${message}`)
+    }
   }
 
   const triggerTestNotice = () => {
@@ -966,8 +1087,21 @@ function ReservationWorkspace() {
     )
   }
 
-  const deleteSelectedMonitor = () => {
+  const deleteSelectedMonitor = async () => {
     if (!selectedMonitor || checkingMonitorId !== null) return
+
+    if (typeof selectedMonitor.id === 'string') {
+      try {
+        const response = await fetch(`/api/reservation-monitors?id=${encodeURIComponent(selectedMonitor.id)}`, {
+          method: 'DELETE',
+        })
+        if (!response.ok) throw new Error('DB 조건 삭제에 실패했습니다.')
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'DB 조건 삭제에 실패했습니다.'
+        setCheckNotice(`삭제 실패: ${message}`)
+        return
+      }
+    }
 
     const nextMonitors = monitors.filter((monitor) => monitor.id !== selectedMonitor.id)
     const nextVisibleMonitors =
@@ -1021,12 +1155,19 @@ function ReservationWorkspace() {
                 ...monitor,
                 status: data.status,
                 lastChecked: checkedAt,
-                nextCheck: data.status === 'available' ? '지금 공식 페이지 확인' : '다음 수동 확인 대기',
+                nextCheck: data.status === 'available' ? '지금 공식 페이지 확인' : '필요하면 다시 조회',
                 history: [historyMessage, ...monitor.history].slice(0, 8),
               }
             : monitor,
         ),
       )
+      if (typeof selectedMonitor.id === 'string') {
+        await fetch(`/api/reservation-monitors?id=${encodeURIComponent(selectedMonitor.id)}`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ status: data.status }),
+        })
+      }
       setCheckNotice(historyMessage)
     } catch (error) {
       const checkedAt = formatCheckedAt(new Date().toISOString())
@@ -1095,7 +1236,7 @@ function ReservationWorkspace() {
         <div>
           <p className="eyebrow">Scope</p>
           <h3>빈자리 조회와 알림은 자동화</h3>
-          <p>서버가 하루 1회 등록 조건을 확인합니다. 10분 주기는 외부 스케줄러나 Pro 배포에서 켭니다.</p>
+          <p>서버가 DB에 저장된 조건을 매일 오전 9시에 확인합니다. 지금 조회는 선택한 조건만 즉시 확인합니다.</p>
         </div>
         <div className="monitor-actions">
           <button className="ghost-button" type="button" onClick={() => setIsAddingMonitor((isAdding) => !isAdding)}>
@@ -1276,7 +1417,11 @@ function ReservationWorkspace() {
                   disabled={checkingMonitorId !== null}
                 >
                   <Search size={17} />
-                  {checkingMonitorId === selectedMonitor.id ? '조회 중' : '지금 조회'}
+                  {checkingMonitorId === selectedMonitor.id
+                    ? '조회 중'
+                    : selectedMonitor.lastChecked === NOT_CHECKED_TEXT
+                      ? '지금 조회'
+                      : '다시 조회'}
                 </button>
                 <button
                   className="ghost-button danger-button"

@@ -1,5 +1,10 @@
 import { checkReservationStatus } from './check-reservation.js'
 import { reservationMonitors } from './reservation-monitor-config.js'
+import {
+  getActiveReservationMonitorRows,
+  hasSupabaseReservationStore,
+  updateReservationMonitorRow,
+} from './supabase-rest.js'
 import { buildReservationAlertText, sendTelegramMessage } from './telegram-alert.js'
 
 function getBearerToken(request) {
@@ -24,6 +29,12 @@ function buildMonitorQuery(monitor) {
   }
 }
 
+async function loadReservationMonitors() {
+  if (!hasSupabaseReservationStore()) return reservationMonitors
+
+  return getActiveReservationMonitorRows()
+}
+
 function shouldAlert(monitor, result) {
   return monitor.alertStatuses.includes(result.status)
 }
@@ -36,6 +47,10 @@ async function runMonitor(monitor) {
   const result = await checkReservationStatus(buildMonitorQuery(monitor))
   const alertRequired = shouldAlert(monitor, result)
   const alert = alertRequired ? await sendTelegramAlert(monitor, result) : { sent: false, reason: 'status_not_alert_target' }
+
+  if (hasSupabaseReservationStore()) {
+    await updateReservationMonitorRow(monitor.id, { status: result.status })
+  }
 
   return {
     id: monitor.id,
@@ -62,7 +77,9 @@ export default async function handler(request, response) {
   }
 
   const results = []
-  for (const monitor of reservationMonitors) {
+  const monitors = await loadReservationMonitors()
+
+  for (const monitor of monitors) {
     try {
       results.push(await runMonitor(monitor))
     } catch (error) {
@@ -79,7 +96,7 @@ export default async function handler(request, response) {
 
   response.status(200).json({
     checkedAt: new Date().toISOString(),
-    monitorCount: reservationMonitors.length,
+    monitorCount: monitors.length,
     results,
   })
 }

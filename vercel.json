@@ -7,6 +7,9 @@
     "api/run-reservation-monitors.js": {
       "regions": ["icn1"]
     },
+    "api/reservation-monitors.js": {
+      "regions": ["icn1"]
+    },
     "api/test-telegram.js": {
       "regions": ["icn1"]
     }
