@@ -27,8 +27,8 @@ npm run build
 - `api/supabase-rest.js`: small Supabase REST client used by monitor APIs.
 - `api/reservation-monitor-config.js`: fallback server-side monitor list when Supabase is not configured.
 - `api/foresttrip-region-search.js`: server-side 숲나들e region-list availability (see below).
-- `.github/workflows/reservation-monitor.yml`: calls `/api/run-reservation-monitors` every 2 hours.
-- `vercel.json`: keeps a daily Vercel Cron backup from the Seoul region.
+- `.github/workflows/reservation-monitor.yml`: calls `/api/run-reservation-monitors` every 2 hours, offset from the top of the hour to avoid scheduler congestion.
+- `vercel.json`: keeps a daily Vercel Cron backup around 07:15 KST from the Seoul region.
 
 Optional Vercel environment variables:
 

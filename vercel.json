@@ -17,7 +17,7 @@
   "crons": [
     {
       "path": "/api/run-reservation-monitors",
-      "schedule": "0 0 * * *"
+      "schedule": "15 22 * * *"
     }
   ]
 }

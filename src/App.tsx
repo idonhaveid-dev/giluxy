@@ -1777,7 +1777,7 @@ function ReservationWorkspace() {
         <div>
           <p className="eyebrow">Scope</p>
           <h3>빈자리 조회와 알림은 자동화</h3>
-          <p>서버가 DB에 저장된 조건을 2시간마다 확인하고, 빈자리로 바뀐 경우에만 텔레그램 알림을 보냅니다.</p>
+          <p>서버가 DB에 저장된 조건을 2시간마다 확인합니다. 정각 혼잡을 피하려고 홀수시 17분 전후에 실행합니다.</p>
         </div>
         <div className="monitor-actions">
           <button className="ghost-button" type="button" onClick={() => setIsAddingMonitor((isAdding) => !isAdding)}>
