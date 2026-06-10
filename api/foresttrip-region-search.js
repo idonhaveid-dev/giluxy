@@ -25,15 +25,17 @@ const UA =
 /** Region code (srchInsttArcd) -> display name. Code 1 verified; 2-9 follow the main.do map order. */
 export const FOREST_REGION_NAMES = {
   1: '서울/인천/경기',
-  2: '충북',
-  3: '대전/충남',
-  4: '전북',
-  5: '광주/전남',
-  6: '강원',
+  2: '강원',
+  3: '충북',
+  4: '대전/충남',
+  5: '전북',
+  6: '광주/전남',
   7: '대구/경북',
   8: '부산/경남',
   9: '제주',
 }
+
+let foresttripFacilityIndexPromise
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -98,7 +100,69 @@ async function getSession(jar) {
     headers: { accept: 'text/html', 'accept-language': 'ko-KR,ko;q=0.9', 'user-agent': UA },
   })
   mergeCookies(jar, headers)
-  return { csrf: body.match(/name="_csrf"\s+value="([^"]+)"/)?.[1] ?? '' }
+  return { csrf: body.match(/name="_csrf"\s+value="([^"]+)"/)?.[1] ?? '', body }
+}
+
+function normalizeForestName(value) {
+  return String(value ?? '')
+    .replace(/\[[^\]]+\]/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+}
+
+function parseForesttripFacilityIndex(html) {
+  const matches = [...html.matchAll(/fn_goRsvrtTheme\(\\'([^\\']*)\\',\\'([^\\']*)\\',\s*\\'([^\\']*)\\'/g)]
+  const seen = new Set()
+  const facilities = []
+
+  for (const match of matches) {
+    const regionCode = match[1]
+    const hmpgId = match[2]
+    const label = match[3].trim()
+    if (!regionCode || !hmpgId || !label || seen.has(hmpgId)) continue
+
+    seen.add(hmpgId)
+    facilities.push({
+      regionCode,
+      hmpgId,
+      label,
+      matchName: normalizeForestName(label),
+      normalizedLabel: normalizeForestName(label),
+    })
+  }
+
+  return facilities
+}
+
+async function getForesttripFacilityIndex() {
+  foresttripFacilityIndexPromise ??= (async () => {
+    const jar = {}
+    const { body } = await getSession(jar)
+    return parseForesttripFacilityIndex(body)
+  })()
+
+  return foresttripFacilityIndexPromise
+}
+
+export async function resolveForesttripFacility({ hmpgId, campground }) {
+  const facilities = await getForesttripFacilityIndex()
+  const normalizedCampground = normalizeForestName(campground)
+
+  const byHmpgId = hmpgId && hmpgId !== 'FRIP' ? facilities.find((facility) => facility.hmpgId === hmpgId) : null
+  if (byHmpgId) return byHmpgId
+
+  if (!normalizedCampground) return null
+
+  return (
+    facilities.find((facility) => facility.normalizedLabel === normalizedCampground) ??
+    facilities.find(
+      (facility) =>
+        facility.normalizedLabel.includes(normalizedCampground) ||
+        normalizedCampground.includes(facility.normalizedLabel),
+    ) ??
+    null
+  )
 }
 
 /**
@@ -240,7 +304,11 @@ export async function checkForestRegionAvailability({ regionCode, matchName, sta
     }
   }
 
-  const matches = cards.filter((card) => card.name.includes(matchName))
+  const normalizedMatchName = normalizeForestName(matchName)
+  const matches = cards.filter((card) => {
+    const normalizedCardName = normalizeForestName(card.name)
+    return normalizedCardName.includes(normalizedMatchName) || normalizedMatchName.includes(normalizedCardName)
+  })
   if (matches.length === 0) {
     return {
       status: 'watching',

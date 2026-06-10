@@ -27,6 +27,7 @@ import {
   Video,
 } from 'lucide-react'
 import './App.css'
+import { foresttripFacilities } from './foresttripFacilities'
 
 type AppView = 'home' | 'blog' | 'reservation'
 type Status = 'idea' | 'research' | 'field' | 'draft' | 'published'
@@ -185,41 +186,13 @@ const knpsReservationFacilityOptions: ReservationFacilityOption[] = [
 
 const reservationFacilityOptions: ReservationFacilityOption[] = [
   ...knpsReservationFacilityOptions,
-  {
-    id: 'forest-yongin',
-    service: '숲나들e',
-    park: '서울/인천/경기',
-    label: '용인자연휴양림',
-    link: 'https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=ID02030031&menuId=002002002',
-  },
-  {
-    id: 'forest-unaksan',
-    service: '숲나들e',
-    park: '서울/인천/경기',
-    label: '운악산 자연휴양림',
-    link: 'https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=0224&menuId=002002002',
-  },
-  {
-    id: 'forest-yumyeongsan',
-    service: '숲나들e',
-    park: '서울/인천/경기',
-    label: '유명산 자연휴양림',
-    link: 'https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=0101&menuId=002002002',
-  },
-  {
-    id: 'forest-barasan',
-    service: '숲나들e',
-    park: '서울/인천/경기',
-    label: '의왕바라산자연휴양림',
-    link: 'https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=ID02030065&menuId=002002002',
-  },
-  {
-    id: 'forest-baegunbong',
-    service: '숲나들e',
-    park: '서울/인천/경기',
-    label: '양평 백운봉 자연휴양림',
-    link: 'https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=ID02030087&menuId=002002002',
-  },
+  ...foresttripFacilities.map(({ hmpgId, label, regionName }) => ({
+    id: `forest-${hmpgId.toLowerCase()}`,
+    service: '숲나들e' as const,
+    park: regionName,
+    label,
+    link: `https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=${hmpgId}&menuId=002002002`,
+  })),
 ]
 
 const fieldQuestions: FieldQuestion[] = [

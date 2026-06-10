@@ -58,6 +58,7 @@ Flow (`api/foresttrip-region-search.js`): `main.do` (cookies + `_csrf`) → `nf.
 (`netfunnel_key`, pass-through opcode 5101) → `fcfsRsrvtRcrfrDtlDetls.do` (region list) → parse each
 `<div class="rc_item">` card's `[예약가능]`/`[예약불가]` badge and 객실 수. `api/check-reservation.js`
 maps a forest URL's `hmpgId` (or name) to `{ regionCode, matchName }` and detects the target inside the list.
+The app dropdown is seeded from 187 Foresttrip facilities extracted from the same public main-page reservation data.
 
 foresttrip.go.kr intermittently resets connections (`ECONNRESET`); the module retries with backoff.
 A missing/invalid `netfunnel_key` returns a guard page ("비정상적인 접근…"), which the parser reports as `watching`.

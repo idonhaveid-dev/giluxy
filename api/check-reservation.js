@@ -1,4 +1,4 @@
-import { checkForestRegionAvailability } from './foresttrip-region-search.js'
+import { checkForestRegionAvailability, resolveForesttripFacility } from './foresttrip-region-search.js'
 
 const ALLOWED_HOSTS = new Set([
   'reservation.knps.or.kr',
@@ -60,17 +60,6 @@ const knpsFacilityFallbacks = [
   ...facility,
   pattern: new RegExp(`${escapeRegExp(facility.parkName)}.*${escapeRegExp(facility.deptName)}|${escapeRegExp(facility.deptName)}`),
 }))
-
-// 숲나들e facilities are detected inside their region's full result list.
-// regionCode = srchInsttArcd (1 = 서울/인천/경기); matchName must be a substring of the
-// rendered card name, e.g. "[국립](가평군)유명산자연휴양림".
-const forestFacilityFallbacks = [
-  { pattern: /용인/, hmpgId: 'ID02030031', regionCode: 1, matchName: '용인자연휴양림', label: '용인자연휴양림' },
-  { pattern: /운악산/, hmpgId: '0224', regionCode: 1, matchName: '운악산자연휴양림', label: '국립운악산자연휴양림' },
-  { pattern: /유명산/, hmpgId: '0101', regionCode: 1, matchName: '유명산자연휴양림', label: '국립유명산자연휴양림' },
-  { pattern: /바라산/, hmpgId: 'ID02030065', regionCode: 1, matchName: '바라산자연휴양림', label: '의왕 바라산자연휴양림' },
-  { pattern: /백운봉/, hmpgId: 'ID02030087', regionCode: 1, matchName: '백운봉', label: '양평 백운봉 자연휴양림' },
-]
 
 const availablePatterns = [/잔여\s*[1-9]/, /예약가능\s*[1-9]/, /[1-9]\s*자리/]
 
@@ -166,14 +155,11 @@ function findKnpsFacility(targetUrl, campground) {
   }
 }
 
-// Resolve a monitored forest to its { regionCode, matchName, label } from the request URL's
-// hmpgId or the campground name. Returns null when the facility is not in the registry, since
-// region-list search needs a known region code and a name to match.
-function findForestFacility(targetUrl, campground) {
+// Resolve a monitored forest from the official main.do facility index. This keeps the
+// monitor setup from depending on a manually maintained hmpgId registry.
+async function findForestFacility(targetUrl, campground) {
   const hmpgId = targetUrl.searchParams.get('hmpgId')
-  const byHmpgId = hmpgId && hmpgId !== 'FRIP' ? forestFacilityFallbacks.find((facility) => facility.hmpgId === hmpgId) : null
-  const byName = forestFacilityFallbacks.find((facility) => facility.pattern.test(String(campground ?? '')))
-  return byHmpgId ?? byName ?? null
+  return resolveForesttripFacility({ hmpgId, campground })
 }
 
 function getAttribute(tag, name) {
@@ -297,7 +283,7 @@ async function checkKnpsReservation(targetUrl, query) {
 // foresttrip-region-search.js. We keep the existing URL contract (hmpgId in the request URL)
 // and only switch the backend mechanism from the unreliable per-facility detail page.
 async function checkForestReservation(targetUrl, query) {
-  const facility = findForestFacility(targetUrl, query.campground)
+  const facility = await findForestFacility(targetUrl, query.campground)
   const dateValue = extractDate(query.period)
   const nights = extractNights(query.period, query.condition)
 
