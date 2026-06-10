@@ -1,3 +1,5 @@
+import { checkForestRegionAvailability } from './foresttrip-region-search.js'
+
 const ALLOWED_HOSTS = new Set([
   'reservation.knps.or.kr',
   'www.foresttrip.go.kr',
@@ -59,12 +61,15 @@ const knpsFacilityFallbacks = [
   pattern: new RegExp(`${escapeRegExp(facility.parkName)}.*${escapeRegExp(facility.deptName)}|${escapeRegExp(facility.deptName)}`),
 }))
 
+// 숲나들e facilities are detected inside their region's full result list.
+// regionCode = srchInsttArcd (1 = 서울/인천/경기); matchName must be a substring of the
+// rendered card name, e.g. "[국립](가평군)유명산자연휴양림".
 const forestFacilityFallbacks = [
-  { pattern: /용인/, hmpgId: 'ID02030031', label: '용인자연휴양림' },
-  { pattern: /운악산/, hmpgId: '0224', label: '국립운악산자연휴양림' },
-  { pattern: /유명산/, hmpgId: '0101', label: '국립유명산자연휴양림' },
-  { pattern: /바라산/, hmpgId: 'ID02030065', label: '의왕 바라산자연휴양림' },
-  { pattern: /백운봉/, hmpgId: 'ID02030087', label: '양평 백운봉 자연휴양림' },
+  { pattern: /용인/, hmpgId: 'ID02030031', regionCode: 1, matchName: '용인자연휴양림', label: '용인자연휴양림' },
+  { pattern: /운악산/, hmpgId: '0224', regionCode: 1, matchName: '운악산자연휴양림', label: '국립운악산자연휴양림' },
+  { pattern: /유명산/, hmpgId: '0101', regionCode: 1, matchName: '유명산자연휴양림', label: '국립유명산자연휴양림' },
+  { pattern: /바라산/, hmpgId: 'ID02030065', regionCode: 1, matchName: '바라산자연휴양림', label: '의왕 바라산자연휴양림' },
+  { pattern: /백운봉/, hmpgId: 'ID02030087', regionCode: 1, matchName: '백운봉', label: '양평 백운봉 자연휴양림' },
 ]
 
 const availablePatterns = [/잔여\s*[1-9]/, /예약가능\s*[1-9]/, /[1-9]\s*자리/]
@@ -145,10 +150,6 @@ function addDays(dateValue, days) {
   return `${year}${month}${day}`
 }
 
-function formatForestDate(dateValue) {
-  return `${dateValue.slice(0, 4)}-${dateValue.slice(4, 6)}-${dateValue.slice(6, 8)}`
-}
-
 function findKnpsFacility(targetUrl, campground) {
   const deptId = targetUrl.searchParams.get('deptId')
   const fallback =
@@ -165,19 +166,14 @@ function findKnpsFacility(targetUrl, campground) {
   }
 }
 
+// Resolve a monitored forest to its { regionCode, matchName, label } from the request URL's
+// hmpgId or the campground name. Returns null when the facility is not in the registry, since
+// region-list search needs a known region code and a name to match.
 function findForestFacility(targetUrl, campground) {
   const hmpgId = targetUrl.searchParams.get('hmpgId')
-  const fallback =
-    forestFacilityFallbacks.find((facility) => facility.hmpgId === hmpgId) ??
-    forestFacilityFallbacks.find((facility) => facility.pattern.test(String(campground ?? '')))
-
-  if (fallback) return fallback
-  if (!hmpgId) return null
-
-  return {
-    hmpgId,
-    label: String(campground ?? '자연휴양림'),
-  }
+  const byHmpgId = hmpgId && hmpgId !== 'FRIP' ? forestFacilityFallbacks.find((facility) => facility.hmpgId === hmpgId) : null
+  const byName = forestFacilityFallbacks.find((facility) => facility.pattern.test(String(campground ?? '')))
+  return byHmpgId ?? byName ?? null
 }
 
 function getAttribute(tag, name) {
@@ -296,39 +292,10 @@ async function checkKnpsReservation(targetUrl, query) {
   return parseKnpsAvailability(html, dateValue, nights)
 }
 
-function parseForestAvailability(html, dateValue, nights, facilityLabel) {
-  const normalizedText = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
-  const hasAvailableSignal = availablePatterns.some((pattern) => pattern.test(normalizedText))
-  const hasClosedSignal = closedPatterns.some((pattern) => pattern.test(normalizedText))
-  const goodsIds = new Set([...html.matchAll(/goodsId=([A-Z0-9]+)/g)].map((match) => match[1]))
-
-  if (hasAvailableSignal && !hasClosedSignal) {
-    return {
-      status: 'available',
-      message: `${facilityLabel} ${dateValue} 기준 ${nights}박 예약 가능 신호가 감지됐습니다. 공식 페이지에서 즉시 확인하세요.`,
-    }
-  }
-
-  if (hasClosedSignal && !hasAvailableSignal) {
-    return {
-      status: 'closed',
-      message: `${facilityLabel} ${dateValue} 기준 마감 또는 잔여 0 신호가 감지됐습니다.`,
-    }
-  }
-
-  if (goodsIds.size > 0) {
-    return {
-      status: 'watching',
-      message: `${facilityLabel} 야영장 상품 ${goodsIds.size}개는 확인했습니다. 날짜별 잔여석은 숲나들e 결과 화면에서 추가 확인이 필요합니다.`,
-    }
-  }
-
-  return {
-    status: 'watching',
-    message: `${facilityLabel} 예약 페이지 연결은 확인했습니다. 날짜별 잔여석은 공식 화면에서 추가 확인이 필요합니다.`,
-  }
-}
-
+// 숲나들e: query the facility's whole region list (region + date + nights) and detect the
+// target forest inside it. The NetFunnel-gated region endpoint is reproduced server-side in
+// foresttrip-region-search.js. We keep the existing URL contract (hmpgId in the request URL)
+// and only switch the backend mechanism from the unreliable per-facility detail page.
 async function checkForestReservation(targetUrl, query) {
   const facility = findForestFacility(targetUrl, query.campground)
   const dateValue = extractDate(query.period)
@@ -337,84 +304,18 @@ async function checkForestReservation(targetUrl, query) {
   if (!facility || !dateValue) {
     return {
       status: 'watching',
-      message: '숲나들e 잔여현황 조회에 필요한 자연휴양림 코드 또는 날짜를 찾지 못했습니다.',
+      message: '숲나들e 지역 목록 조회에 필요한 자연휴양림 정보 또는 날짜를 찾지 못했습니다.',
     }
   }
 
-  const startDate = formatForestDate(dateValue)
-  const endDateValue = addDays(dateValue, nights)
-  const endDate = formatForestDate(endDateValue)
-  const listUrl = `https://www.foresttrip.go.kr/pot/rm/fa/selectCmpgrArmpListView.do?hmpgId=${facility.hmpgId}&menuId=002002002`
-  const pageResponse = await fetch(listUrl, {
-    headers: {
-      accept: 'text/html,application/xhtml+xml',
-      'user-agent': 'GILUXY reservation monitor',
-    },
+  return checkForestRegionAvailability({
+    regionCode: facility.regionCode,
+    matchName: facility.matchName,
+    startYmd: dateValue,
+    endYmd: addDays(dateValue, nights),
+    nights,
+    label: facility.label,
   })
-
-  if (!pageResponse.ok) {
-    throw new Error(`숲나들e 예약 페이지 응답 오류: ${pageResponse.status}`)
-  }
-
-  const pageHtml = await pageResponse.text()
-  const csrf = pageHtml.match(/name="_csrf" value="([^"]+)"/)?.[1] ?? ''
-  const cookie = collectSetCookie(pageResponse.headers)
-  const params = new URLSearchParams({
-    _csrf: csrf,
-    srchInsttArcd: '',
-    srchInsttId: facility.hmpgId,
-    srchRsrvtBgDt: dateValue,
-    srchRsrvtEdDt: endDateValue,
-    srchStngNofpr: '0',
-    srchSthngCnt: String(nights),
-    srchWord: '',
-    srchUseDt: `${startDate} ~ ${endDate}`,
-    netfunnel_key: '',
-    houseCampSctin: '',
-    rsrvtPssblYn: 'N',
-    rsrvtWtngSctin: '01',
-    srchHouseCharg: '',
-    srchCampCharg: '',
-    goodsClsscHouseCdArr: '',
-    goodsClsscCampCdArr: '',
-    srchInsttTpcd: '',
-    cmdogYn: 'N',
-    bbqYn: 'N',
-    dsprsYn: 'N',
-    otsdWeterYn: 'N',
-    wifiYn: 'N',
-    snowPlaceYn: 'N',
-    srchMyLtd: '',
-    srchMyLng: '',
-    srchDstnc: '',
-    gNowPage: '1',
-    srchGoodsId: '',
-    menuId: '001001',
-    hmpgId: facility.hmpgId,
-  })
-  const resultUrl = `https://www.foresttrip.go.kr/rep/or/sssn/fcfsRsrvtPssblGoodsDetls.do?${params.toString()}`
-  const resultResponse = await fetch(resultUrl, {
-    headers: {
-      accept: 'text/html,application/xhtml+xml',
-      cookie,
-      referer: listUrl,
-      'user-agent': 'GILUXY reservation monitor',
-    },
-  })
-  const resultHtml = await resultResponse.text()
-
-  if (resultResponse.status === 401) {
-    return {
-      status: 'watching',
-      message: `${facility.label} 조회는 숲나들e NetFunnel 세션 키 없이는 날짜별 잔여 결과를 반환하지 않습니다. 예약 페이지 버튼으로 공식 화면을 바로 확인하세요.`,
-    }
-  }
-
-  if (!resultResponse.ok) {
-    throw new Error(`숲나들e 잔여현황 응답 오류: ${resultResponse.status}`)
-  }
-
-  return parseForestAvailability(resultHtml, dateValue, nights, facility.label)
 }
 
 function detectGenericStatus(html, targetUrl) {

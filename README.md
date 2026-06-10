@@ -24,6 +24,7 @@ npm run build
 - `api/test-telegram.js`: manual Telegram alert test endpoint.
 - `api/telegram-alert.js`: shared Telegram message sender. Tokens must stay in environment variables.
 - `api/reservation-monitor-config.js`: server-side monitor list. Conditions saved only in browser localStorage are not visible to Cron yet.
+- `api/foresttrip-region-search.js`: server-side 숲나들e region-list availability (see below).
 - `vercel.json`: runs `/api/run-reservation-monitors` daily from the Seoul region on Vercel Hobby.
 - For 10-minute monitoring, use Vercel Pro Cron or an external scheduler that calls `/api/run-reservation-monitors`.
 
@@ -47,9 +48,37 @@ Current automation boundary:
 - Login, CAPTCHA, booking confirmation, and payment stay manual.
 - Without a persistent database, available-state alerts may repeat on each Cron run.
 
-## Foresttrip Browser Monitor
+## Foresttrip Region Search (server-side)
 
-숲나들e 날짜별 잔여현황은 서버 fetch, Jina Reader, Defuddle에서 안정적으로 받을 수 없다. For that service, use the local browser monitor:
+숲나들e availability is detected **server-side** by reproducing the main-page search flow for
+the region-only branch — no browser required. The per-facility detail page was unreliable from
+serverless fetch; the region-list endpoint returns every facility's availability in one request.
+
+Flow (`api/foresttrip-region-search.js`): `main.do` (cookies + `_csrf`) → `nf.foresttrip.go.kr/ts.wseq`
+(`netfunnel_key`, pass-through opcode 5101) → `fcfsRsrvtRcrfrDtlDetls.do` (region list) → parse each
+`<div class="rc_item">` card's `[예약가능]`/`[예약불가]` badge and 객실 수. `api/check-reservation.js`
+maps a forest URL's `hmpgId` (or name) to `{ regionCode, matchName }` and detects the target inside the list.
+
+foresttrip.go.kr intermittently resets connections (`ECONNRESET`); the module retries with backoff.
+A missing/invalid `netfunnel_key` returns a guard page ("비정상적인 접근…"), which the parser reports as `watching`.
+
+Reproduce / inspect:
+
+```bash
+npm run probe:foresttrip                 # region=1, 2026-06-13 1박, target=유명산
+npm run probe:foresttrip -- --keep       # dump raw responses into logs/foresttrip-probe/
+```
+
+Full investigation evidence (NetFunnel protocol, parameters, HTML structure, ECONNRESET, block text):
+see [`docs/foresttrip-region-search.md`](docs/foresttrip-region-search.md).
+
+Boundary: read-only. No login, reservation submit, payment, or CAPTCHA bypass. The `netfunnel_key`
+is the same pass-through key the public page requests; queues are not bypassed.
+
+## Foresttrip Browser Monitor (fallback)
+
+For services or filters the server-side path does not cover, a local browser monitor is still available.
+It reads visible page text only and never bypasses NetFunnel, CAPTCHA, login, or queue controls:
 
 ```bash
 npm run monitor:foresttrip

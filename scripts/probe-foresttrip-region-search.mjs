@@ -241,41 +241,31 @@ async function getRegionResult(jar, url, params, refererBody) {
   return { status: r.status, body: r.body, url: fullUrl }
 }
 
-// --- Result parsing: find target forest and its availability ----------------
-const AVAILABLE = [/예약\s*가능/, /잔여\s*[1-9]/, /신청\s*가능/, /예약하기/]
-const CLOSED = [/예약\s*마감/, /마감/, /잔여\s*0\b/, /매진/]
-
-function textContent(html) {
+// --- Result parsing: split into facility cards, read authoritative status ---
+// Each facility renders as one <div class="rc_item"> card with:
+//   - status badge:  <i>[예약가능]</i> | <i>[예약불가]</i>   (date-aware for the searched dates)
+//   - name:          <b>[국립](가평군)유명산자연휴양림</b>
+//   - room count:    <div class="ut_roomcount">예약가능 객실 수 : N</div>
+//   - button:        예약하기 | 예약불가
+function parseRegionCards(html) {
   return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+    .split('<div class="rc_item">')
+    .slice(1)
+    .map((card) => {
+      const badge = card.match(/<i>\[([^\]]+)\]<\/i>/)?.[1] ?? ''
+      const name = (card.match(/<b>([^<]+)<\/b>/)?.[1] ?? '').trim()
+      const rooms = Number(card.match(/예약가능 객실 수\s*:\s*(\d+)/)?.[1] ?? '0')
+      const available = badge === '예약가능' || rooms > 0
+      return { name, badge, rooms, available }
+    })
+    .filter((c) => c.name)
 }
 
-// Slice the HTML around each target-name occurrence and classify the local status.
-function detectTarget(html, target) {
-  const occurrences = [...html.matchAll(new RegExp(target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))]
-  if (occurrences.length === 0) {
-    return { found: false, status: 'absent', windows: [] }
-  }
-  const windows = occurrences.slice(0, 5).map((m) => {
-    const around = html.slice(Math.max(0, m.index - 400), m.index + 1200)
-    const text = textContent(around)
-    const hasAvail = AVAILABLE.some((p) => p.test(text))
-    const hasClosed = CLOSED.some((p) => p.test(text))
-    return { hasAvail, hasClosed, snippet: text.slice(0, 220) }
-  })
-  const anyAvail = windows.some((w) => w.hasAvail && !w.hasClosed)
-  const allClosed = windows.every((w) => w.hasClosed && !w.hasAvail)
-  return {
-    found: true,
-    status: anyAvail ? 'available' : allClosed ? 'closed' : 'present-unknown',
-    count: occurrences.length,
-    windows,
-  }
+function detectTarget(cards, target) {
+  const matches = cards.filter((c) => c.name.includes(target))
+  if (matches.length === 0) return { found: false, status: 'absent', matches: [] }
+  const available = matches.some((c) => c.available)
+  return { found: true, status: available ? 'available' : 'closed', matches }
 }
 
 async function maybeSave(keep, name, body) {
@@ -313,28 +303,27 @@ async function main() {
   await maybeSave(args.keep, 'region-result.html', result.body)
 
   // Classify
-  const text = textContent(result.body)
-  const looksLikeResults = /자연휴양림|예약|잔여|객실|야영/.test(text)
-  const blocked = /접근이 차단|비정상적인 접근|일시적인 오류|NetFunnel|대기/.test(text) && !looksLikeResults
+  const blocked = /비정상적인 접근/.test(result.body)
+  const cards = parseRegionCards(result.body)
   note('classify', {
-    summary: `looksLikeResults=${looksLikeResults} blocked=${blocked} textLen=${text.length}`,
+    summary: `blocked=${blocked} cards=${cards.length} 예약가능=${cards.filter((c) => c.available).length}`,
   })
 
-  const detection = detectTarget(result.body, args.target)
+  const detection = detectTarget(cards, args.target)
   note('target', {
     summary:
       detection.status === 'absent'
-        ? `"${args.target}" not found in region result`
-        : `"${args.target}" => ${detection.status} (${detection.count} occurrence(s))`,
+        ? `"${args.target}" not found in region result (${cards.length} cards)`
+        : `"${args.target}" => ${detection.status}`,
     targetStatus: detection.status,
   })
-  for (const [i, w] of (detection.windows ?? []).entries()) {
-    console.log(`   win${i} avail=${w.hasAvail} closed=${w.hasClosed} :: ${w.snippet}`)
+  for (const c of detection.matches) {
+    console.log(`   [${c.badge}] rooms=${c.rooms} :: ${c.name}`)
   }
 
-  // First 600 chars of stripped text, to eyeball what came back.
-  console.log('\n--- result text sample ---')
-  console.log(text.slice(0, 600))
+  // Full region snapshot so the run is self-documenting.
+  console.log('\n--- region snapshot (badge | rooms | name) ---')
+  for (const c of cards) console.log(`   ${c.badge.padEnd(6)} ${String(c.rooms).padStart(3)}  ${c.name}`)
 
   finish(args)
 }

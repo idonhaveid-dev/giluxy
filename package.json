@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "monitor:foresttrip": "node scripts/foresttrip-browser-monitor.mjs",
+    "probe:foresttrip": "node scripts/probe-foresttrip-region-search.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
