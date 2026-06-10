@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react'
 import {
   Archive,
   BadgeCheck,
@@ -29,8 +29,9 @@ import {
 import './App.css'
 import { foresttripFacilities } from './foresttripFacilities'
 
-type AppView = 'home' | 'blog' | 'reservation'
+type AppView = 'home' | 'blog' | 'reservation' | 'photo'
 type Status = 'idea' | 'research' | 'field' | 'draft' | 'published'
+type PhotoProjectStatus = 'brief' | 'reference' | 'shoot' | 'edit' | 'delivered'
 type ReservationStatus = 'watching' | 'available' | 'closed'
 
 type BlogItem = {
@@ -56,13 +57,38 @@ type FieldQuestion = {
 }
 
 type AppTile = {
-  id: AppView | 'youtube' | 'photo' | 'drone' | 'location' | 'archive' | 'settings'
+  id: AppView | 'youtube' | 'drone' | 'location' | 'archive' | 'settings'
   title: string
   group: string
   description: string
   state: string
   icon: typeof FileText
   enabled: boolean
+}
+
+type PhotoReference = {
+  id: number
+  title: string
+  url: string
+  mood: string
+  tags: string[]
+}
+
+type PhotoProject = {
+  id: number
+  title: string
+  category: string
+  status: PhotoProjectStatus
+  purpose: string
+  deliverable: string
+  concept: string
+  avoid: string
+  location: string
+  drivePath: string
+  references: PhotoReference[]
+  shotList: string[]
+  checklist: string[]
+  outputSteps: string[]
 }
 
 type ReservationMonitor = {
@@ -132,6 +158,7 @@ const statusMeta: Record<Status, { label: string; tone: string }> = {
 
 const BLOG_ITEMS_STORAGE_KEY = 'giluxy.blogItems.v1'
 const RESERVATION_MONITORS_STORAGE_KEY = 'giluxy.reservationMonitors.v1'
+const PHOTO_PROJECTS_STORAGE_KEY = 'giluxy.photoProjects.v1'
 const AUTO_RESERVATION_CHECK_TEXT = '2시간마다 자동 조회'
 const NOT_CHECKED_TEXT = '아직 조회 전'
 
@@ -145,6 +172,102 @@ const reservationServiceLinks: Record<ReservationService, string> = {
   국립공원공단: 'https://reservation.knps.or.kr/',
   숲나들e: 'https://www.foresttrip.go.kr/',
 }
+
+const photoStatusMeta: Record<PhotoProjectStatus, { label: string; tone: string }> = {
+  brief: { label: '기획', tone: 'neutral' },
+  reference: { label: '레퍼런스', tone: 'blue' },
+  shoot: { label: '촬영준비', tone: 'orange' },
+  edit: { label: '보정중', tone: 'green' },
+  delivered: { label: '납품완료', tone: 'dark' },
+}
+
+const photoShotGuides: Record<string, string[]> = {
+  인물: [
+    '정면 안정 컷: 눈높이, 상반신, 배경 정리',
+    '측면 프로필 컷: 얼굴선과 손 위치가 보이는 컷',
+    '환경 인물 컷: 장소 맥락이 보이도록 넓게',
+    '행동 컷: 걷기, 손동작, 시선 처리처럼 자연스러운 움직임',
+    '클로즈업 컷: 표정, 손, 옷감, 소품 디테일',
+  ],
+  상업촬영: [
+    '대표 컷: 제품이나 공간의 첫인상을 설명하는 와이드 컷',
+    '사용 장면 컷: 사람이 쓰거나 만지는 맥락 컷',
+    '디테일 컷: 재질, 로고, 마감, 기능이 드러나는 컷',
+    '비교 컷: 크기감, 전후, 구성품을 보여주는 컷',
+    '썸네일 컷: 좌우 여백을 남긴 광고/블로그용 컷',
+  ],
+  공간: [
+    '입구 컷: 외부에서 내부로 이어지는 첫인상',
+    '전체 와이드 컷: 동선과 규모가 보이는 컷',
+    '좌석/구역 컷: 사용자가 머무를 공간을 설명하는 컷',
+    '빛 컷: 창가, 조명, 그림자가 분위기를 만드는 컷',
+    '운영 디테일 컷: 메뉴, 안내, 소품, 사인물',
+  ],
+  여행: [
+    '도착 컷: 표지판, 입구, 주차장처럼 정보가 되는 컷',
+    '대표 풍경 컷: 장소를 한 장으로 설명하는 와이드 컷',
+    '동선 컷: 길, 계단, 전망대, 접근 난이도',
+    '체감 컷: 사람 크기나 물건으로 규모가 느껴지는 컷',
+    '마무리 컷: 해질녘, 야경, 돌아가는 길의 분위기',
+  ],
+  제품: [
+    '깨끗한 단독 컷: 제품 형태가 왜곡 없이 보이는 컷',
+    '사용 전 컷: 패키지, 구성품, 설치 전 상태',
+    '사용 중 컷: 손, 현장, 실제 사용 맥락',
+    '문제/장점 컷: 불편한 지점이나 강점이 보이는 컷',
+    '결론 컷: 추천/비추천 판단에 쓰일 대표 컷',
+  ],
+  드론: [
+    '수직 탑샷: 지형과 패턴을 보여주는 컷',
+    '45도 진입 컷: 장소 규모와 입체감을 동시에 보여주는 컷',
+    '전진/후퇴 동선 컷: 영상 썸네일로 쓰기 좋은 컷',
+    '고도 비교 컷: 낮은 고도와 높은 고도 각각 확보',
+    '안전 확인 컷: 비행 가능 구역과 장애물 기록',
+  ],
+}
+
+const defaultPhotoProjects: PhotoProject[] = [
+  {
+    id: 1,
+    title: '캠핑 브랜드 제품 촬영',
+    category: '상업촬영',
+    status: 'reference',
+    purpose: '블로그 리뷰와 업체 제안서에 모두 쓸 수 있는 제품 사용 장면 확보',
+    deliverable: '블로그 본문 12장, 썸네일 2장, 인스타용 세로 컷 4장',
+    concept: '해질녘 자연광, 따뜻하지만 과장되지 않은 캠핑 사용감',
+    avoid: '스톡 사진처럼 과하게 깨끗한 배경, 실제 사용감이 없는 연출',
+    location: '야영장 데크 또는 차박 세팅',
+    drivePath: 'GILUXY/사진촬영/2026/캠핑브랜드제품촬영/01_RAW',
+    references: [
+      {
+        id: 1,
+        title: '따뜻한 캠핑 제품 사용컷',
+        url: 'https://unsplash.com/s/photos/camping-product',
+        mood: '따뜻한 톤, 손이 들어간 사용 장면, 해질녘',
+        tags: ['캠핑', '제품', '자연광', '상업촬영'],
+      },
+    ],
+    shotList: photoShotGuides.상업촬영,
+    checklist: ['촬영 허가와 브랜드 노출 범위 확인', '배터리 2개 이상', 'SD카드 포맷', '제품 먼지 제거', '썸네일용 여백 컷 확보'],
+    outputSteps: ['RAW 원본 저장', '1차 셀렉', '보정본 JPG export', '블로그용 1600px 리사이즈', '납품/게시 위치 기록'],
+  },
+  {
+    id: 2,
+    title: '카페 공간 촬영',
+    category: '공간',
+    status: 'brief',
+    purpose: '공간의 분위기와 이용 동선을 동시에 보여주는 소개용 사진 구성',
+    deliverable: '외관/내부/좌석/메뉴/디테일 컷 20장',
+    concept: '창가 자연광, 조용한 오전, 과장 없는 공간감',
+    avoid: '사람 얼굴이 식별되는 컷, 너무 넓어서 비어 보이는 구도',
+    location: '카페 현장',
+    drivePath: 'GILUXY/사진촬영/2026/카페공간촬영/01_RAW',
+    references: [],
+    shotList: photoShotGuides.공간,
+    checklist: ['영업 전 촬영 가능 시간 확인', '손님 얼굴 노출 방지', '외관 간판 컷', '메뉴판/대표 메뉴 컷', '화이트밸런스 고정'],
+    outputSteps: ['RAW 백업', '공간별 폴더 분류', '대표컷 별도 표시', '클라이언트 확인본 export', '최종본 Drive 링크 정리'],
+  },
+]
 
 const knpsReservationFacilityOptions: ReservationFacilityOption[] = [
   { park: '가야산', label: '백운동 야영장', deptId: 'B131002' },
@@ -383,9 +506,9 @@ const appTiles: AppTile[] = [
     title: '사진촬영',
     group: '촬영',
     description: '촬영지, 렌즈, 시간대, 샷리스트, 결과물 셀렉 관리',
-    state: '준비중',
+    state: '사용 가능',
     icon: Camera,
-    enabled: false,
+    enabled: true,
   },
   {
     id: 'drone',
@@ -468,6 +591,10 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
+function isPhotoProjectStatus(value: unknown): value is PhotoProjectStatus {
+  return value === 'brief' || value === 'reference' || value === 'shoot' || value === 'edit' || value === 'delivered'
+}
+
 function isBlogItem(value: unknown): value is BlogItem {
   if (typeof value !== 'object' || value === null) return false
   const item = value as Record<string, unknown>
@@ -503,6 +630,42 @@ function isReservationMonitor(value: unknown): value is ReservationMonitor {
     typeof monitor.notify === 'string' &&
     typeof monitor.link === 'string' &&
     isStringArray(monitor.history)
+  )
+}
+
+function isPhotoReference(value: unknown): value is PhotoReference {
+  if (typeof value !== 'object' || value === null) return false
+  const reference = value as Record<string, unknown>
+
+  return (
+    typeof reference.id === 'number' &&
+    typeof reference.title === 'string' &&
+    typeof reference.url === 'string' &&
+    typeof reference.mood === 'string' &&
+    isStringArray(reference.tags)
+  )
+}
+
+function isPhotoProject(value: unknown): value is PhotoProject {
+  if (typeof value !== 'object' || value === null) return false
+  const project = value as Record<string, unknown>
+
+  return (
+    typeof project.id === 'number' &&
+    typeof project.title === 'string' &&
+    typeof project.category === 'string' &&
+    isPhotoProjectStatus(project.status) &&
+    typeof project.purpose === 'string' &&
+    typeof project.deliverable === 'string' &&
+    typeof project.concept === 'string' &&
+    typeof project.avoid === 'string' &&
+    typeof project.location === 'string' &&
+    typeof project.drivePath === 'string' &&
+    Array.isArray(project.references) &&
+    project.references.every(isPhotoReference) &&
+    isStringArray(project.shotList) &&
+    isStringArray(project.checklist) &&
+    isStringArray(project.outputSteps)
   )
 }
 
@@ -606,6 +769,24 @@ function loadReservationMonitors(): ReservationMonitor[] {
   }
 }
 
+function loadPhotoProjects(): PhotoProject[] {
+  try {
+    const storedValue = window.localStorage.getItem(PHOTO_PROJECTS_STORAGE_KEY)
+    if (!storedValue) return defaultPhotoProjects
+
+    const parsedValue: unknown = JSON.parse(storedValue)
+    if (!Array.isArray(parsedValue) || !parsedValue.every(isPhotoProject)) {
+      throw new Error('Saved photo projects have an invalid shape.')
+    }
+
+    return parsedValue
+  } catch (error) {
+    console.error(error)
+    window.localStorage.removeItem(PHOTO_PROJECTS_STORAGE_KEY)
+    return defaultPhotoProjects
+  }
+}
+
 function getReservationFacilityOptions(service: ReservationService): ReservationFacilityOption[] {
   return reservationFacilityOptions.filter((facility) => facility.service === service)
 }
@@ -676,6 +857,39 @@ function createBlogItemFromMemo(memo: string, existingItems: BlogItem[]): BlogIt
   }
 }
 
+function createPhotoProject(existingProjects: PhotoProject[]): PhotoProject {
+  const nextId = Math.max(0, ...existingProjects.map((project) => project.id)) + 1
+
+  return {
+    id: nextId,
+    title: '새 촬영 프로젝트',
+    category: '상업촬영',
+    status: 'brief',
+    purpose: '촬영 목적을 한 문장으로 정리',
+    deliverable: '블로그용 컷, SNS용 컷, 납품본 등 결과물 정의',
+    concept: '원하는 톤, 시간대, 빛, 감정, 브랜드 느낌',
+    avoid: '피해야 할 연출, 색감, 구도, 과장된 표현',
+    location: '촬영 장소 미정',
+    drivePath: 'GILUXY/사진촬영/2026/새촬영프로젝트/01_RAW',
+    references: [],
+    shotList: photoShotGuides.상업촬영,
+    checklist: ['촬영 허가 확인', '배터리 충전', 'SD카드 포맷', '렌즈 클리닝', '백업 폴더 생성'],
+    outputSteps: ['RAW 저장', '1차 셀렉', '보정본 export', 'Drive 업로드', '최종 링크 기록'],
+  }
+}
+
+function createMoodSearchText(project: PhotoProject, reference?: PhotoReference): string {
+  const baseText = [project.category, project.concept, project.location, reference?.mood, ...(reference?.tags ?? [])]
+    .filter(Boolean)
+    .join(' ')
+
+  return `${baseText} photography mood reference natural light composition`.trim()
+}
+
+function getRecommendedShots(project: PhotoProject): string[] {
+  return photoShotGuides[project.category] ?? photoShotGuides.상업촬영
+}
+
 function formatFieldAnswers(fieldAnswers: Record<string, string>): string {
   return fieldQuestions
     .map((question) => {
@@ -716,6 +930,8 @@ ${formatFieldAnswers(item.fieldAnswers) || '- 아직 없음'}`
 function App() {
   const [view, setView] = useState<AppView>('home')
   const [items, setItems] = useState<BlogItem[]>(() => loadBlogItems())
+  const [photoProjects, setPhotoProjects] = useState<PhotoProject[]>(() => loadPhotoProjects())
+  const [selectedPhotoProjectId, setSelectedPhotoProjectId] = useState(defaultPhotoProjects[0].id)
   const [selectedId, setSelectedId] = useState(defaultBlogItems[0].id)
   const [activeStatus, setActiveStatus] = useState<Status | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -727,6 +943,10 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(BLOG_ITEMS_STORAGE_KEY, JSON.stringify(items))
   }, [items])
+
+  useEffect(() => {
+    window.localStorage.setItem(PHOTO_PROJECTS_STORAGE_KEY, JSON.stringify(photoProjects))
+  }, [photoProjects])
 
   const selectedItem = items.find((item) => item.id === selectedId) ?? items[0] ?? defaultBlogItems[0]
 
@@ -796,8 +1016,22 @@ function App() {
     <div className="app-shell">
       <Sidebar view={view} onNavigate={setView} />
       <main className={view === 'home' ? 'workspace home-workspace' : 'workspace'}>
-        {view === 'home' ? <HomeScreen onOpenBlog={() => setView('blog')} onOpenReservation={() => setView('reservation')} /> : null}
+        {view === 'home' ? (
+          <HomeScreen
+            onOpenBlog={() => setView('blog')}
+            onOpenPhoto={() => setView('photo')}
+            onOpenReservation={() => setView('reservation')}
+          />
+        ) : null}
         {view === 'reservation' ? <ReservationWorkspace /> : null}
+        {view === 'photo' ? (
+          <PhotoWorkspace
+            projects={photoProjects}
+            selectedProjectId={selectedPhotoProjectId}
+            setProjects={setPhotoProjects}
+            setSelectedProjectId={setSelectedPhotoProjectId}
+          />
+        ) : null}
         {view === 'blog' ? (
           <BlogWorkspace
             activeStatus={activeStatus}
@@ -873,7 +1107,7 @@ function Sidebar({ view, onNavigate }: { view: AppView; onNavigate: (view: AppVi
 
         <section className="nav-group">
           <p>제작</p>
-          <button className="nav-item" type="button">
+          <button className={view === 'photo' ? 'nav-item active' : 'nav-item'} type="button" onClick={() => onNavigate('photo')}>
             <Camera size={18} strokeWidth={1.8} />
             <span>사진촬영</span>
           </button>
@@ -903,7 +1137,15 @@ function Sidebar({ view, onNavigate }: { view: AppView; onNavigate: (view: AppVi
   )
 }
 
-function HomeScreen({ onOpenBlog, onOpenReservation }: { onOpenBlog: () => void; onOpenReservation: () => void }) {
+function HomeScreen({
+  onOpenBlog,
+  onOpenPhoto,
+  onOpenReservation,
+}: {
+  onOpenBlog: () => void
+  onOpenPhoto: () => void
+  onOpenReservation: () => void
+}) {
   return (
     <>
       <header className="home-hero">
@@ -925,6 +1167,7 @@ function HomeScreen({ onOpenBlog, onOpenReservation }: { onOpenBlog: () => void;
           const openTile = () => {
             if (tile.id === 'blog') onOpenBlog()
             if (tile.id === 'reservation') onOpenReservation()
+            if (tile.id === 'photo') onOpenPhoto()
           }
           return (
             <button
@@ -957,6 +1200,304 @@ function HomeScreen({ onOpenBlog, onOpenReservation }: { onOpenBlog: () => void;
           <h3>앱별 독립 화면</h3>
           <p>각 앱은 별도 데이터와 체크리스트를 가지되, 장소와 자료보관함은 공통 모듈로 연결합니다.</p>
         </article>
+      </section>
+    </>
+  )
+}
+
+function PhotoWorkspace({
+  projects,
+  selectedProjectId,
+  setProjects,
+  setSelectedProjectId,
+}: {
+  projects: PhotoProject[]
+  selectedProjectId: number
+  setProjects: Dispatch<SetStateAction<PhotoProject[]>>
+  setSelectedProjectId: Dispatch<SetStateAction<number>>
+}) {
+  const [referenceUrl, setReferenceUrl] = useState('')
+  const [referenceMood, setReferenceMood] = useState('')
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0]
+  const recommendedShots = selectedProject ? getRecommendedShots(selectedProject) : []
+  const moodSearchText = selectedProject ? createMoodSearchText(selectedProject, selectedProject.references[0]) : ''
+  const moodSearchUrl = `https://unsplash.com/s/photos/${encodeURIComponent(moodSearchText)}`
+  const pexelsSearchUrl = `https://www.pexels.com/search/${encodeURIComponent(moodSearchText)}/`
+
+  const addProject = () => {
+    const nextProject = createPhotoProject(projects)
+    setProjects((currentProjects) => [nextProject, ...currentProjects])
+    setSelectedProjectId(nextProject.id)
+  }
+
+  const updateSelectedProject = (patch: Partial<PhotoProject>) => {
+    if (!selectedProject) return
+    setProjects((currentProjects) =>
+      currentProjects.map((project) => (project.id === selectedProject.id ? { ...project, ...patch } : project)),
+    )
+  }
+
+  const addReference = () => {
+    if (!selectedProject || !referenceUrl.trim()) return
+
+    const nextReference: PhotoReference = {
+      id: Math.max(0, ...selectedProject.references.map((reference) => reference.id)) + 1,
+      title: referenceUrl.replace(/^https?:\/\//, '').split('/')[0] || '외부 레퍼런스',
+      url: referenceUrl.trim(),
+      mood: referenceMood.trim() || selectedProject.concept,
+      tags: [selectedProject.category, ...selectedProject.concept.split(/[,\s]+/).filter(Boolean).slice(0, 4)],
+    }
+
+    updateSelectedProject({
+      references: [nextReference, ...selectedProject.references],
+      status: 'reference',
+    })
+    setReferenceUrl('')
+    setReferenceMood('')
+  }
+
+  const applyShotGuide = () => {
+    if (!selectedProject) return
+    updateSelectedProject({ shotList: recommendedShots })
+  }
+
+  if (!selectedProject) {
+    return (
+      <div className="empty-state">
+        <strong>사진 촬영 프로젝트가 없습니다.</strong>
+        <p>새 프로젝트를 만들어 촬영 목적과 레퍼런스를 정리하세요.</p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">Production / Photo</p>
+          <h2>사진 촬영 보드</h2>
+        </div>
+        <button className="primary-button" type="button" onClick={addProject}>
+          <Plus size={17} />
+          프로젝트 추가
+        </button>
+      </header>
+
+      <section className="summary-grid">
+        <article className="metric-card">
+          <Camera size={20} />
+          <div>
+            <strong>{projects.length}</strong>
+            <span>촬영 프로젝트</span>
+          </div>
+        </article>
+        <article className="metric-card">
+          <Tags size={20} />
+          <div>
+            <strong>{selectedProject.references.length}</strong>
+            <span>무드 레퍼런스</span>
+          </div>
+        </article>
+        <article className="metric-card">
+          <ClipboardList size={20} />
+          <div>
+            <strong>{selectedProject.shotList.length}</strong>
+            <span>샷 리스트</span>
+          </div>
+        </article>
+        <article className="metric-card">
+          <Archive size={20} />
+          <div>
+            <strong>Drive</strong>
+            <span>결과물 관리</span>
+          </div>
+        </article>
+      </section>
+
+      <section className="photo-grid">
+        <div className="board-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Projects</p>
+              <h3>촬영 프로젝트</h3>
+            </div>
+            <div className="status-tabs">
+              {Object.entries(photoStatusMeta).map(([status, meta]) => (
+                <button
+                  className={selectedProject.status === status ? 'active' : ''}
+                  key={status}
+                  type="button"
+                  onClick={() => updateSelectedProject({ status: status as PhotoProjectStatus })}
+                >
+                  {meta.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="photo-project-list">
+            {projects.map((project) => (
+              <button
+                className={project.id === selectedProject.id ? 'photo-project-card selected' : 'photo-project-card'}
+                key={project.id}
+                type="button"
+                onClick={() => setSelectedProjectId(project.id)}
+              >
+                <div className="card-topline">
+                  <span className={`status-pill ${photoStatusMeta[project.status].tone}`}>{photoStatusMeta[project.status].label}</span>
+                  <span>{project.category}</span>
+                </div>
+                <strong>{project.title}</strong>
+                <p>{project.purpose}</p>
+                <span>{project.deliverable}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <aside className="detail-panel">
+          <div className="detail-header">
+            <span className={`status-pill ${photoStatusMeta[selectedProject.status].tone}`}>
+              {photoStatusMeta[selectedProject.status].label}
+            </span>
+            <h3>{selectedProject.title}</h3>
+            <p>{selectedProject.purpose}</p>
+          </div>
+
+          <section className="detail-section">
+            <h4>
+              <FileText size={17} />
+              촬영 프로젝트 정의
+            </h4>
+            <div className="photo-form-grid">
+              <label className="form-field">
+                <span>프로젝트명</span>
+                <input value={selectedProject.title} onChange={(event) => updateSelectedProject({ title: event.target.value })} />
+              </label>
+              <label className="form-field">
+                <span>카테고리</span>
+                <select
+                  value={selectedProject.category}
+                  onChange={(event) =>
+                    updateSelectedProject({
+                      category: event.target.value,
+                      shotList: photoShotGuides[event.target.value] ?? selectedProject.shotList,
+                    })
+                  }
+                >
+                  {Object.keys(photoShotGuides).map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span>촬영 장소</span>
+                <input value={selectedProject.location} onChange={(event) => updateSelectedProject({ location: event.target.value })} />
+              </label>
+            </div>
+            <label className="form-field spacious-field">
+              <span>목적</span>
+              <textarea className="field-note-input" value={selectedProject.purpose} onChange={(event) => updateSelectedProject({ purpose: event.target.value })} />
+            </label>
+            <label className="form-field spacious-field">
+              <span>결과물</span>
+              <textarea className="field-note-input" value={selectedProject.deliverable} onChange={(event) => updateSelectedProject({ deliverable: event.target.value })} />
+            </label>
+          </section>
+
+          <section className="detail-section">
+            <h4>
+              <Sparkles size={17} />
+              촬영 콘셉트
+            </h4>
+            <label className="form-field spacious-field">
+              <span>원하는 느낌</span>
+              <textarea className="field-note-input" value={selectedProject.concept} onChange={(event) => updateSelectedProject({ concept: event.target.value })} />
+            </label>
+            <label className="form-field spacious-field">
+              <span>피해야 할 느낌</span>
+              <textarea className="field-note-input" value={selectedProject.avoid} onChange={(event) => updateSelectedProject({ avoid: event.target.value })} />
+            </label>
+          </section>
+
+          <section className="detail-section">
+            <h4>
+              <ExternalLink size={17} />
+              무드 레퍼런스
+            </h4>
+            <div className="reference-capture">
+              <input placeholder="외부 이미지나 보드 링크" value={referenceUrl} onChange={(event) => setReferenceUrl(event.target.value)} />
+              <input placeholder="분위기 메모" value={referenceMood} onChange={(event) => setReferenceMood(event.target.value)} />
+              <button className="primary-button" type="button" onClick={addReference} disabled={!referenceUrl.trim()}>
+                <Plus size={17} />
+                저장
+              </button>
+            </div>
+            <div className="reference-actions">
+              <a href={moodSearchUrl} target="_blank" rel="noreferrer">
+                Unsplash 비슷한 분위기
+                <ExternalLink size={15} />
+              </a>
+              <a href={pexelsSearchUrl} target="_blank" rel="noreferrer">
+                Pexels 비슷한 분위기
+                <ExternalLink size={15} />
+              </a>
+            </div>
+            <div className="reference-list">
+              {selectedProject.references.map((reference) => (
+                <a className="reference-card" href={reference.url} key={reference.id} target="_blank" rel="noreferrer">
+                  <strong>{reference.title}</strong>
+                  <span>{reference.mood}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <section className="detail-section">
+            <h4>
+              <ClipboardList size={17} />
+              추천 샷 리스트
+            </h4>
+            <button className="ghost-button compact-action" type="button" onClick={applyShotGuide}>
+              카테고리 매뉴얼 적용
+            </button>
+            <ul>
+              {selectedProject.shotList.map((shot) => (
+                <li key={shot}>{shot}</li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="detail-section">
+            <h4>
+              <CheckCircle2 size={17} />
+              촬영 체크리스트
+            </h4>
+            <ul>
+              {selectedProject.checklist.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="detail-section">
+            <h4>
+              <Archive size={17} />
+              결과물 관리
+            </h4>
+            <div className="drive-path">
+              <span>Google Drive 저장 위치</span>
+              <strong>{selectedProject.drivePath}</strong>
+            </div>
+            <ul>
+              {selectedProject.outputSteps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ul>
+          </section>
+        </aside>
       </section>
     </>
   )
