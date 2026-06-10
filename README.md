@@ -23,15 +23,18 @@ npm run build
 - `api/run-reservation-monitors.js`: scheduled monitor runner for Vercel Cron.
 - `api/test-telegram.js`: manual Telegram alert test endpoint.
 - `api/telegram-alert.js`: shared Telegram message sender. Tokens must stay in environment variables.
-- `api/reservation-monitor-config.js`: server-side monitor list. Conditions saved only in browser localStorage are not visible to Cron yet.
+- `api/reservation-monitors.js`: Supabase-backed monitor condition API.
+- `api/supabase-rest.js`: small Supabase REST client used by monitor APIs.
+- `api/reservation-monitor-config.js`: fallback server-side monitor list when Supabase is not configured.
 - `api/foresttrip-region-search.js`: server-side 숲나들e region-list availability (see below).
-- `vercel.json`: runs `/api/run-reservation-monitors` daily from the Seoul region on Vercel Hobby.
-- For 10-minute monitoring, use Vercel Pro Cron or an external scheduler that calls `/api/run-reservation-monitors`.
+- `vercel.json`: runs `/api/run-reservation-monitors` every 2 hours from the Seoul region.
 
 Optional Vercel environment variables:
 
 - `TELEGRAM_BOT_TOKEN`: Telegram bot token for alerts.
 - `TELEGRAM_CHAT_ID`: Telegram chat ID that receives alerts.
+- `SUPABASE_URL`: Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key for server-side monitor reads/writes.
 - `RESERVATION_CRON_SECRET`: optional guard for manual monitor runs. If set, call `/api/run-reservation-monitors?secret=...` or use `Authorization: Bearer ...`.
 
 Telegram setup:
@@ -46,7 +49,7 @@ Current automation boundary:
 
 - The server checks availability and can send alerts.
 - Login, CAPTCHA, booking confirmation, and payment stay manual.
-- Without a persistent database, available-state alerts may repeat on each Cron run.
+- Supabase stores monitor status, so Telegram alerts are sent only when a condition changes into `available`.
 
 ## Foresttrip Region Search (server-side)
 

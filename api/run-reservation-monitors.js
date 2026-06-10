@@ -36,7 +36,12 @@ async function loadReservationMonitors() {
 }
 
 function shouldAlert(monitor, result) {
-  return monitor.alertStatuses.includes(result.status)
+  return monitor.alertStatuses.includes(result.status) && monitor.status !== result.status
+}
+
+function getAlertSkipReason(monitor, result) {
+  if (!monitor.alertStatuses.includes(result.status)) return 'status_not_alert_target'
+  return 'status_not_changed'
 }
 
 async function sendTelegramAlert(monitor, result) {
@@ -46,7 +51,7 @@ async function sendTelegramAlert(monitor, result) {
 async function runMonitor(monitor) {
   const result = await checkReservationStatus(buildMonitorQuery(monitor))
   const alertRequired = shouldAlert(monitor, result)
-  const alert = alertRequired ? await sendTelegramAlert(monitor, result) : { sent: false, reason: 'status_not_alert_target' }
+  const alert = alertRequired ? await sendTelegramAlert(monitor, result) : { sent: false, reason: getAlertSkipReason(monitor, result) }
 
   if (hasSupabaseReservationStore()) {
     await updateReservationMonitorRow(monitor.id, { status: result.status })

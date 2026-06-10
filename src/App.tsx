@@ -132,7 +132,7 @@ const statusMeta: Record<Status, { label: string; tone: string }> = {
 
 const BLOG_ITEMS_STORAGE_KEY = 'giluxy.blogItems.v1'
 const RESERVATION_MONITORS_STORAGE_KEY = 'giluxy.reservationMonitors.v1'
-const AUTO_RESERVATION_CHECK_TEXT = '매일 오전 9시 자동 조회'
+const AUTO_RESERVATION_CHECK_TEXT = '2시간마다 자동 조회'
 const NOT_CHECKED_TEXT = '아직 조회 전'
 
 const reservationStatusMeta: Record<ReservationStatus, { label: string; tone: string }> = {
@@ -1226,7 +1226,7 @@ function ReservationWorkspace() {
         <article className="metric-card">
           <BadgeCheck size={20} />
           <div>
-            <strong>1일</strong>
+            <strong>2시간</strong>
             <span>자동 조회 주기</span>
           </div>
         </article>
@@ -1236,7 +1236,7 @@ function ReservationWorkspace() {
         <div>
           <p className="eyebrow">Scope</p>
           <h3>빈자리 조회와 알림은 자동화</h3>
-          <p>서버가 DB에 저장된 조건을 매일 오전 9시에 확인합니다. 지금 조회는 선택한 조건만 즉시 확인합니다.</p>
+          <p>서버가 DB에 저장된 조건을 2시간마다 확인하고, 빈자리로 바뀐 경우에만 텔레그램 알림을 보냅니다.</p>
         </div>
         <div className="monitor-actions">
           <button className="ghost-button" type="button" onClick={() => setIsAddingMonitor((isAdding) => !isAdding)}>
