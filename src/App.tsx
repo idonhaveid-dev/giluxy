@@ -118,6 +118,7 @@ type ReservationFacilityOption = {
 
 type ReservationMonitorDraft = {
   service: ReservationService
+  areaId: string
   facilityId: string
   startDate: string
   nights: StayNights
@@ -129,6 +130,11 @@ type ReservationCheckResult = {
   message: string
   checkedAt: string
   source: string
+}
+
+type ReservationAreaOption = {
+  id: string
+  label: string
 }
 
 type StoredReservationMonitor = {
@@ -787,12 +793,37 @@ function loadPhotoProjects(): PhotoProject[] {
   }
 }
 
-function getReservationFacilityOptions(service: ReservationService): ReservationFacilityOption[] {
-  return reservationFacilityOptions.filter((facility) => facility.service === service)
+function getReservationAreaId(service: ReservationService, areaName: string): string {
+  return `${service}:${areaName}`
 }
 
-function getDefaultFacilityId(service: ReservationService): string {
-  return getReservationFacilityOptions(service)[0]?.id ?? reservationFacilityOptions[0].id
+function getReservationAreaOptions(service: ReservationService): ReservationAreaOption[] {
+  const areas = new Map<string, ReservationAreaOption>()
+
+  reservationFacilityOptions
+    .filter((facility) => facility.service === service)
+    .forEach((facility) => {
+      const id = getReservationAreaId(service, facility.park)
+      if (!areas.has(id)) {
+        areas.set(id, { id, label: facility.park })
+      }
+    })
+
+  return [...areas.values()]
+}
+
+function getDefaultAreaId(service: ReservationService): string {
+  return getReservationAreaOptions(service)[0]?.id ?? getReservationAreaId(service, '')
+}
+
+function getReservationFacilityOptions(service: ReservationService, areaId: string): ReservationFacilityOption[] {
+  const areaName = areaId.split(':').slice(1).join(':')
+
+  return reservationFacilityOptions.filter((facility) => facility.service === service && facility.park === areaName)
+}
+
+function getDefaultFacilityId(service: ReservationService, areaId = getDefaultAreaId(service)): string {
+  return getReservationFacilityOptions(service, areaId)[0]?.id ?? reservationFacilityOptions.find((facility) => facility.service === service)?.id ?? ''
 }
 
 function formatReservationDate(dateValue: string): string {
@@ -1510,6 +1541,7 @@ function ReservationWorkspace() {
   const [isAddingMonitor, setIsAddingMonitor] = useState(false)
   const [newMonitor, setNewMonitor] = useState<ReservationMonitorDraft>({
     service: '국립공원공단',
+    areaId: getReservationAreaId('국립공원공단', '월악산'),
     facilityId: 'knps-b111002',
     startDate: '2026-06-13',
     nights: '1',
@@ -1560,9 +1592,12 @@ function ReservationWorkspace() {
     filteredMonitors.find((monitor) => monitor.id === selectedMonitorId) ?? filteredMonitors[0]
   const notifyingMonitorCount = monitors.filter((monitor) => monitor.notify !== '알림 미설정').length
   const availableMonitorCount = monitors.filter((monitor) => monitor.status === 'available').length
-  const facilityOptions = getReservationFacilityOptions(newMonitor.service)
+  const areaOptions = getReservationAreaOptions(newMonitor.service)
+  const selectedArea = areaOptions.find((area) => area.id === newMonitor.areaId) ?? areaOptions[0]
+  const facilityOptions = getReservationFacilityOptions(newMonitor.service, selectedArea?.id ?? '')
   const selectedFacility =
     facilityOptions.find((facility) => facility.id === newMonitor.facilityId) ?? facilityOptions[0]
+  const areaFieldLabel = newMonitor.service === '숲나들e' ? '광역 지역' : '국립공원'
   const reservationLink = selectedFacility?.link ?? reservationServiceLinks[newMonitor.service]
   const periodText = `${formatReservationDate(newMonitor.startDate)}부터 ${newMonitor.nights}박`
   const conditionText = `${newMonitor.nights}박 빈자리 알림`
@@ -1807,15 +1842,37 @@ function ReservationWorkspace() {
                 value={newMonitor.service}
                 onChange={(event) => {
                   const service = event.target.value as ReservationService
+                  const areaId = getDefaultAreaId(service)
                   setNewMonitor({
                     ...newMonitor,
                     service,
-                    facilityId: getDefaultFacilityId(service),
+                    areaId,
+                    facilityId: getDefaultFacilityId(service, areaId),
                   })
                 }}
               >
                 <option>국립공원공단</option>
                 <option>숲나들e</option>
+              </select>
+            </label>
+            <label className="form-field">
+              <span>{areaFieldLabel}</span>
+              <select
+                value={selectedArea?.id ?? ''}
+                onChange={(event) => {
+                  const areaId = event.target.value
+                  setNewMonitor({
+                    ...newMonitor,
+                    areaId,
+                    facilityId: getDefaultFacilityId(newMonitor.service, areaId),
+                  })
+                }}
+              >
+                {areaOptions.map((area) => (
+                  <option key={area.id} value={area.id}>
+                    {area.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="form-field">
@@ -1826,7 +1883,7 @@ function ReservationWorkspace() {
               >
                 {facilityOptions.map((facility) => (
                   <option key={facility.id} value={facility.id}>
-                    [{facility.park}] {facility.label}
+                    {facility.label}
                   </option>
                 ))}
               </select>
