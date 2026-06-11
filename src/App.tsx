@@ -170,7 +170,7 @@ const NOT_CHECKED_TEXT = '아직 조회 전'
 
 const reservationStatusMeta: Record<ReservationStatus, { label: string; tone: string }> = {
   watching: { label: '감시중', tone: 'blue' },
-  available: { label: '빈자리 감지', tone: 'green' },
+  available: { label: '빈자리 있음', tone: 'green' },
   closed: { label: '빈자리 없음', tone: 'neutral' },
 }
 
@@ -1803,7 +1803,7 @@ function ReservationWorkspace() {
           <Sparkles size={20} />
           <div>
             <strong>{availableMonitorCount}</strong>
-            <span>빈자리 감지</span>
+            <span>빈자리 있음</span>
           </div>
         </article>
         <article className="metric-card">
