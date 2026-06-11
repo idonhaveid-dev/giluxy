@@ -179,6 +179,11 @@ const reservationServiceLinks: Record<ReservationService, string> = {
   숲나들e: 'https://www.foresttrip.go.kr/',
 }
 
+const reservationServiceLabels: Record<ReservationService, string> = {
+  국립공원공단: '국립공원공단',
+  숲나들e: '숲나들이',
+}
+
 const photoStatusMeta: Record<PhotoProjectStatus, { label: string; tone: string }> = {
   brief: { label: '기획', tone: 'neutral' },
   reference: { label: '레퍼런스', tone: 'blue' },
@@ -795,6 +800,10 @@ function loadPhotoProjects(): PhotoProject[] {
 
 function getReservationAreaId(_service: ReservationService, areaName: string): string {
   return areaName
+}
+
+function getReservationServiceLabel(service: string): string {
+  return service === '숲나들e' ? reservationServiceLabels.숲나들e : service
 }
 
 function getReservationAreaName(areaId: string): string {
@@ -1856,13 +1865,14 @@ function ReservationWorkspace() {
                   })
                 }}
               >
-                <option>국립공원공단</option>
-                <option>숲나들e</option>
+                <option value="국립공원공단">{reservationServiceLabels.국립공원공단}</option>
+                <option value="숲나들e">{reservationServiceLabels.숲나들e}</option>
               </select>
             </label>
             <label className="form-field">
               <span>{areaFieldLabel}</span>
               <select
+                key={`${newMonitor.service}-area`}
                 value={selectedArea?.id ?? ''}
                 onChange={(event) => {
                   const areaId = event.target.value
@@ -1883,6 +1893,7 @@ function ReservationWorkspace() {
             <label className="form-field">
               <span>{facilityFieldLabel}</span>
               <select
+                key={`${newMonitor.service}-${selectedArea?.id ?? 'area'}-facility`}
                 value={selectedFacility?.id ?? ''}
                 onChange={(event) => setNewMonitor({ ...newMonitor, facilityId: event.target.value })}
               >
@@ -1925,7 +1936,7 @@ function ReservationWorkspace() {
             <div className="form-field link-preview">
               <span>예약 페이지</span>
               <a href={reservationLink} target="_blank" rel="noreferrer">
-                {newMonitor.service} 예약 페이지
+                {getReservationServiceLabel(newMonitor.service)} 예약 페이지
                 <ExternalLink size={15} />
               </a>
             </div>
@@ -1988,7 +1999,7 @@ function ReservationWorkspace() {
                     <span className={`status-pill ${reservationStatusMeta[monitor.status].tone}`}>
                       {reservationStatusMeta[monitor.status].label}
                     </span>
-                    <span>{monitor.service}</span>
+                    <span>{getReservationServiceLabel(monitor.service)}</span>
                   </div>
                   <strong>{monitor.campground}</strong>
                   <p>{monitor.period}</p>
@@ -2045,7 +2056,7 @@ function ReservationWorkspace() {
               </h4>
               <div className="reservation-facts">
                 <span>서비스</span>
-                <strong>{selectedMonitor.service}</strong>
+                <strong>{getReservationServiceLabel(selectedMonitor.service)}</strong>
                 <span>기간</span>
                 <strong>{selectedMonitor.period}</strong>
                 <span>마지막 확인</span>
