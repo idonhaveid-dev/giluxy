@@ -793,8 +793,12 @@ function loadPhotoProjects(): PhotoProject[] {
   }
 }
 
-function getReservationAreaId(service: ReservationService, areaName: string): string {
-  return `${service}:${areaName}`
+function getReservationAreaId(_service: ReservationService, areaName: string): string {
+  return areaName
+}
+
+function getReservationAreaName(areaId: string): string {
+  return areaId.includes(':') ? areaId.split(':').slice(1).join(':') : areaId
 }
 
 function getReservationAreaOptions(service: ReservationService): ReservationAreaOption[] {
@@ -817,7 +821,7 @@ function getDefaultAreaId(service: ReservationService): string {
 }
 
 function getReservationFacilityOptions(service: ReservationService, areaId: string): ReservationFacilityOption[] {
-  const areaName = areaId.split(':').slice(1).join(':')
+  const areaName = getReservationAreaName(areaId)
 
   return reservationFacilityOptions.filter((facility) => facility.service === service && facility.park === areaName)
 }
@@ -1598,6 +1602,7 @@ function ReservationWorkspace() {
   const selectedFacility =
     facilityOptions.find((facility) => facility.id === newMonitor.facilityId) ?? facilityOptions[0]
   const areaFieldLabel = newMonitor.service === '숲나들e' ? '광역 지역' : '국립공원'
+  const facilityFieldLabel = newMonitor.service === '숲나들e' ? '휴양림/야영장' : '야영장'
   const reservationLink = selectedFacility?.link ?? reservationServiceLinks[newMonitor.service]
   const periodText = `${formatReservationDate(newMonitor.startDate)}부터 ${newMonitor.nights}박`
   const conditionText = `${newMonitor.nights}박 빈자리 알림`
@@ -1833,7 +1838,7 @@ function ReservationWorkspace() {
         <section className="monitor-form" aria-label="모니터링 조건 추가">
           <div>
             <p className="eyebrow">New Monitor</p>
-            <h3>빈자리 감시 조건 추가</h3>
+            <h3>빈자리 알림 조건 추가</h3>
           </div>
           <div className="form-grid">
             <label className="form-field">
@@ -1876,9 +1881,9 @@ function ReservationWorkspace() {
               </select>
             </label>
             <label className="form-field">
-              <span>야영장</span>
+              <span>{facilityFieldLabel}</span>
               <select
-                value={newMonitor.facilityId}
+                value={selectedFacility?.id ?? ''}
                 onChange={(event) => setNewMonitor({ ...newMonitor, facilityId: event.target.value })}
               >
                 {facilityOptions.map((facility) => (
