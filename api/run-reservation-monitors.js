@@ -53,7 +53,9 @@ async function runMonitor(monitor) {
   const alertRequired = shouldAlert(monitor, result)
   const alert = alertRequired ? await sendTelegramAlert(monitor, result) : { sent: false, reason: getAlertSkipReason(monitor, result) }
 
-  if (hasSupabaseReservationStore()) {
+  const shouldPersistStatus = !(alertRequired && !alert.sent)
+
+  if (hasSupabaseReservationStore() && shouldPersistStatus) {
     await updateReservationMonitorRow(monitor.id, { status: result.status })
   }
 
@@ -65,6 +67,7 @@ async function runMonitor(monitor) {
     condition: monitor.condition,
     alertRequired,
     alert,
+    statusPersisted: shouldPersistStatus,
     ...result,
   }
 }

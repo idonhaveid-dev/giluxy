@@ -1751,13 +1751,6 @@ function ReservationWorkspace() {
             : monitor,
         ),
       )
-      if (typeof selectedMonitor.id === 'string') {
-        await fetch(`/api/reservation-monitors?id=${encodeURIComponent(selectedMonitor.id)}`, {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ status: data.status }),
-        })
-      }
       setCheckNotice(historyMessage)
     } catch (error) {
       const checkedAt = formatCheckedAt(new Date().toISOString())
