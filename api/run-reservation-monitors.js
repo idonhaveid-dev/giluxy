@@ -36,12 +36,12 @@ async function loadReservationMonitors() {
 }
 
 function shouldAlert(monitor, result) {
-  return monitor.alertStatuses.includes(result.status) && monitor.status !== result.status
+  return monitor.alertStatuses.includes(result.status)
 }
 
 function getAlertSkipReason(monitor, result) {
   if (!monitor.alertStatuses.includes(result.status)) return 'status_not_alert_target'
-  return 'status_not_changed'
+  return 'status_alert_target'
 }
 
 async function sendTelegramAlert(monitor, result) {
