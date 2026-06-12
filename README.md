@@ -51,7 +51,7 @@ Current automation boundary:
 
 - The server checks availability and can send alerts.
 - Login, CAPTCHA, booking confirmation, and payment stay manual.
-- Supabase stores monitor status, so Telegram alerts are sent only when a condition changes into `available`.
+- Supabase stores monitor status, and the scheduled runner sends Telegram alerts on every check where a condition is `available`.
 
 ## Foresttrip Region Search (server-side)
 

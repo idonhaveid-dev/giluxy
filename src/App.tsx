@@ -165,6 +165,7 @@ const statusMeta: Record<Status, { label: string; tone: string }> = {
 const BLOG_ITEMS_STORAGE_KEY = 'giluxy.blogItems.v1'
 const RESERVATION_MONITORS_STORAGE_KEY = 'giluxy.reservationMonitors.v1'
 const PHOTO_PROJECTS_STORAGE_KEY = 'giluxy.photoProjects.v1'
+const SERVER_MONITOR_REFRESH_INTERVAL_MS = 60_000
 const AUTO_RESERVATION_CHECK_TEXT = '2시간마다 자동 조회'
 const NOT_CHECKED_TEXT = '아직 조회 전'
 
@@ -1571,7 +1572,7 @@ function ReservationWorkspace() {
   useEffect(() => {
     let isActive = true
 
-    async function loadStoredMonitors() {
+    async function refreshStoredMonitors() {
       try {
         const response = await fetch('/api/reservation-monitors')
         if (!response.ok) return
@@ -1581,16 +1582,28 @@ function ReservationWorkspace() {
 
         const storedMonitors = data.monitors.map(createMonitorFromStored)
         setMonitors(storedMonitors)
-        setSelectedMonitorId(storedMonitors[0].id)
+        setSelectedMonitorId((currentId) =>
+          storedMonitors.some((monitor) => monitor.id === currentId) ? currentId : storedMonitors[0].id,
+        )
       } catch (error) {
         console.error(error)
       }
     }
 
-    void loadStoredMonitors()
+    function refreshWhenVisible() {
+      if (document.visibilityState === 'visible') void refreshStoredMonitors()
+    }
+
+    void refreshStoredMonitors()
+    const refreshIntervalId = window.setInterval(refreshStoredMonitors, SERVER_MONITOR_REFRESH_INTERVAL_MS)
+    window.addEventListener('focus', refreshStoredMonitors)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
 
     return () => {
       isActive = false
+      window.clearInterval(refreshIntervalId)
+      window.removeEventListener('focus', refreshStoredMonitors)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
   }, [])
 
